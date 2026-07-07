@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
 
-import 'app.dart';
+import 'core/constants/app_constants.dart';
+import 'core/theme/app_theme.dart';
+import 'core/widgets/app_scaffold.dart';
 
-/// App entry point — kept intentionally thin. All app-level setup
-/// (MaterialApp, theme, routing) lives in `app.dart` so main.dart doesn't
-/// balloon as the project grows.
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+/// Root of the application.
+///
+/// Registers the iOS-inspired light and dark themes and follows the
+/// device appearance automatically via [ThemeMode.system].
+class MotirongApp extends StatelessWidget {
+  const MotirongApp({super.key});
 
-  // TODO: initialize anything that must be ready before the first frame:
-  // - secure storage (flutter_secure_storage) for the refresh token
-  // - local offline-queue database (Drift/Hive)
-  // - crash/analytics reporting
-  // These belong in core/services and should be awaited here once built,
-  // e.g.: await OfflineQueueService.init();
-
-  runApp(const MoTirong());
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: AppConstants.appName,
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      home: const AppScaffold(),
+    );
+  }
 }

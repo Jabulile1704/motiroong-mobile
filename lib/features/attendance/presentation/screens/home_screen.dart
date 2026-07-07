@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Home screen — the primary clock-in/clock-out screen for employees.
-///
-/// This is UI-only: local state simulates the clocked-in/out toggle so the
-/// screen is fully navigable and previewable on its own. Wire the TODOs
-/// below to `core/services/location_service.dart`,
-/// `core/services/biometric_service.dart`, and
-/// `features/attendance/presentation/providers/attendance_provider.dart`
-/// once those are ready.
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/date_formatter.dart';
+import '../../data/models/attendance_record.dart';
+import '../widgets/clock_button.dart';
+import '../widgets/status_card.dart';
+
+/// Home tab: iOS large-title header, current status card and the main
+/// clock in/out action.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -16,206 +16,125 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ---- Placeholder state (replace with provider/bloc-backed state) ----
-  bool _isClockedIn = true;
-  final String _employeeName = 'Jabulile Mashibini';
-  final String _siteName = 'Main office site';
-  final String _lastActionTime = '07:58';
-  bool _isSubmitting = false;
+  bool _busy = false;
+  ClockStatus _status = ClockStatus.clockedOut;
+  DateTime? _clockInTime;
 
-  Future<void> _handleClockAction() async {
-    setState(() => _isSubmitting = true);
-
-    // TODO: replace this delay with the real flow:
-    // 1. locationService.getCurrentPosition()
-    // 2. biometricService.authenticate()
-    // 3. attendanceRepository.clockIn() / clockOut()
-    await Future.delayed(const Duration(milliseconds: 900));
-
+  Future<void> _toggleClock() async {
+    setState(() => _busy = true);
+    // Placeholder for the real attendance repository call
+    // (location check + API request + offline queue).
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
     setState(() {
-      _isClockedIn = !_isClockedIn;
-      _isSubmitting = false;
+      _busy = false;
+      if (_status == ClockStatus.clockedIn) {
+        _status = ClockStatus.clockedOut;
+        _clockInTime = null;
+      } else {
+        _status = ClockStatus.clockedIn;
+        _clockInTime = DateTime.now();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
+    final DateTime now = DateTime.now();
+    final bool clockedIn = _status == ClockStatus.clockedIn;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F3),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildGreeting(theme),
-              const SizedBox(height: 20),
-              _buildStatusCard(),
-              const SizedBox(height: 16),
-              _buildLocationPreview(),
-              const Spacer(),
-              _buildClockButton(),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(context),
-    );
-  }
-
-  Widget _buildGreeting(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Good morning',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: Colors.grey.shade600,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          _employeeName,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusCard() {
-    final color = _isClockedIn ? Colors.green : Colors.grey;
-    final backgroundColor = _isClockedIn
-        ? Colors.green.shade50
-        : Colors.grey.shade100;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _isClockedIn ? Icons.check_circle : Icons.circle_outlined,
-                size: 18,
-                color: color.shade700,
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+              20, 12, 20, AppConstants.bottomBarClearance),
+          children: [
+            // Large-title header, iOS style.
+            Text(
+              DateFormatter.fullDate(now).toUpperCase(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
               ),
-              const SizedBox(width: 8),
-              Text(
-                _isClockedIn ? 'Clocked in' : 'Not clocked in',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$_lastActionTime · $_siteName',
-            style: TextStyle(fontSize: 13, color: color.shade700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationPreview() {
-    return Container(
-      height: 130,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // TODO: replace with an embedded map widget (e.g. google_maps_flutter)
-          // centered on the employee's current position and the site geofence.
-          Icon(Icons.location_on, size: 28, color: Colors.blueGrey.shade400),
-          const Positioned(
-            bottom: 10,
-            child: Text(
-              'Within site radius',
-              style: TextStyle(fontSize: 11, color: Colors.black45),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 2),
+            Text(
+              '${DateFormatter.greeting(now)} 👋',
+              style: theme.textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 20),
 
-  Widget _buildClockButton() {
-    final isClockingOut = _isClockedIn;
+            StatusCard(
+              status: _status,
+              since: _clockInTime,
+              location: clockedIn ? 'Head Office' : null,
+            ),
+            const SizedBox(height: 36),
 
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton.icon(
-        onPressed: _isSubmitting ? null : _handleClockAction,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isClockingOut
-              ? Colors.red.shade600
-              : Colors.green.shade600,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 0,
-        ),
-        icon: _isSubmitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
+            Center(
+              child: ClockButton(
+                clockedIn: clockedIn,
+                busy: _busy,
+                onPressed: _toggleClock,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                clockedIn ? 'Tap to end your shift' : 'Tap to start your shift',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 36),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _StatTile(
+                    label: 'Today',
+                    value: _clockInTime == null
+                        ? '—'
+                        : DateFormatter.duration(now.difference(_clockInTime!)),
+                  ),
                 ),
-              )
-            : const Icon(Icons.fingerprint),
-        label: Text(
-          _isSubmitting
-              ? 'Verifying…'
-              : (isClockingOut ? 'Clock out' : 'Clock in'),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: _StatTile(label: 'This week', value: '32h 15m'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildBottomNav(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Theme.of(context).colorScheme.primary,
-      unselectedItemColor: Colors.grey.shade500,
-      showUnselectedLabels: true,
-      // TODO: wire to app_router.dart navigation instead of a static index.
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.access_time),
-          label: 'History',
+class _StatTile extends StatelessWidget {
+  const _StatTile({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(value, style: theme.textTheme.headlineSmall),
+          ],
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.error_outline),
-          label: 'Exceptions',
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-      ],
+      ),
     );
   }
 }
