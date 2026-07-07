@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # iOS-style "liquid glass" bottom navigation bar.
-  liquid_glass_bar: ^0.1.1
+  # liquid_glass_bar: ^0.1.1
 
 dev_dependencies:
   flutter_test:
