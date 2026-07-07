@@ -1,10 +1,10 @@
-# MoTiroong
+# MoTirong
 
 > Geo-tagged, biometrically verified staff attendance for Mangaung Metro Municipality — built to make clock-in/clock-out records trustworthy and auditable.
 
 ## About
 
-MoTiroong is a cross-platform mobile solution for municipal staff attendance. Employees clock in and out using their device's on-device biometric sensor combined with GPS geofence validation, giving HR and management verifiable, tamper-resistant attendance records without collecting or storing raw biometric data.
+MoTirong is a cross-platform mobile solution for municipal staff attendance. Employees clock in and out using their device's on-device biometric sensor combined with GPS geofence validation, giving HR and management verifiable, tamper-resistant attendance records without collecting or storing raw biometric data.
 
 ## Features
 
@@ -86,3 +86,4 @@ Create a `.env` (mobile) and `appsettings.Development.json` (API) — **do not c
 
 ## License
 
+*(To be determined — add your organization's/municipality's licensing terms here.)*

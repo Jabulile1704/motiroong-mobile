@@ -1,30 +1,36 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:motirong/main.dart';
+import 'package:motirong/core/theme/app_theme.dart';
+import 'package:motirong/features/attendance/presentation/screens/home_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  // The AppScaffold's LiquidGlassBar depends on fragment shaders that are
+  // not loaded in widget tests, so screens are pumped directly with the
+  // app themes instead of through MotirongApp.
+  Widget wrap(Widget child, {ThemeData? theme}) =>
+      MaterialApp(theme: theme ?? AppTheme.light, home: child);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('Home screen shows status card and clock-in action',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(wrap(const HomeScreen()));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(find.text('Current status'), findsOneWidget);
+    expect(find.text('Clock In'), findsOneWidget);
+    expect(find.text('Clocked out'), findsOneWidget);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('Home screen renders with the dark theme',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(wrap(const HomeScreen(), theme: AppTheme.dark));
+
+    expect(find.text('Clock In'), findsOneWidget);
+  });
+
+  test('themes are iOS-flavoured in both modes', () {
+    expect(AppTheme.light.brightness, Brightness.light);
+    expect(AppTheme.dark.brightness, Brightness.dark);
+    expect(AppTheme.light.platform, TargetPlatform.iOS);
+    expect(AppTheme.dark.platform, TargetPlatform.iOS);
   });
 }
