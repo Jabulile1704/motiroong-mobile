@@ -5,10 +5,10 @@ enum ClockStatus {
   onBreak;
 
   String get label => switch (this) {
-        ClockStatus.clockedIn => 'Clocked in',
-        ClockStatus.clockedOut => 'Clocked out',
-        ClockStatus.onBreak => 'On break',
-      };
+    ClockStatus.clockedIn => 'Clocked in',
+    ClockStatus.clockedOut => 'Clocked out',
+    ClockStatus.onBreak => 'On break',
+  };
 }
 
 /// A single day's attendance entry.
@@ -42,9 +42,9 @@ class AttendanceRecord {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'clock_in': clockIn.toIso8601String(),
-        'clock_out': clockOut?.toIso8601String(),
-        'location': location,
-      };
+    'id': id,
+    'clock_in': clockIn.toIso8601String(),
+    'clock_out': clockOut?.toIso8601String(),
+    'location': location,
+  };
 }

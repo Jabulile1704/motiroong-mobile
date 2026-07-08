@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/attendance_record.dart';
 import '../widgets/clock_button.dart';
 import '../widgets/status_card.dart';
@@ -50,7 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
         bottom: false,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
-              20, 12, 20, AppConstants.bottomBarClearance),
+            20,
+            12,
+            20,
+            AppConstants.bottomBarClearance,
+          ),
           children: [
             // Large-title header, iOS style.
             Text(
@@ -62,7 +67,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 2),
             Text(
-              '${DateFormatter.greeting(now)} 👋',
+              authProvider.session == null
+                  ? '${DateFormatter.greeting(now)} 👋'
+                  : '${DateFormatter.greeting(now)}, '
+                        '${authProvider.session!.fullName.split(' ').first} 👋',
               style: theme.textTheme.headlineLarge,
             ),
             const SizedBox(height: 20),

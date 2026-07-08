@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access for the MoTiroong API. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Geo-tagged sign-in and clock-in verification. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
         android:label="motirong"
         android:name="${applicationName}"

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/presentation/providers/auth_provider.dart';
 
 /// Profile tab: iOS Settings-style grouped lists with tinted icon tiles.
 class ProfileScreen extends StatelessWidget {
@@ -18,7 +19,11 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
-            20, 8, 20, AppConstants.bottomBarClearance),
+          20,
+          8,
+          20,
+          AppConstants.bottomBarClearance,
+        ),
         children: [
           // Identity header.
           Card(
@@ -29,9 +34,9 @@ class ProfileScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: theme.colorScheme.primary,
-                    child: const Text(
-                      'JM',
-                      style: TextStyle(
+                    child: Text(
+                      authProvider.session?.initials ?? '?',
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -43,10 +48,15 @@ class ProfileScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Jabulile M.', style: theme.textTheme.titleLarge),
+                        Text(
+                          authProvider.session?.fullName ?? 'Employee',
+                          style: theme.textTheme.titleLarge,
+                        ),
                         const SizedBox(height: 2),
-                        Text('Employee · Head Office',
-                            style: theme.textTheme.bodySmall),
+                        Text(
+                          '${authProvider.session?.role ?? 'Employee'} · Head Office',
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -115,8 +125,32 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              onTap: () {},
+              onTap: () => _confirmSignOut(context),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmSignOut(BuildContext context) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text('You will need to sign in again to clock in.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              authProvider.signOut();
+            },
+            child: const Text('Sign Out'),
           ),
         ],
       ),

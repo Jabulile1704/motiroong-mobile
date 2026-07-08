@@ -35,8 +35,14 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
-  # iOS-style "liquid glass" bottom navigation bar.
-  liquid_glass_bar: ^0.1.1
+  # Geolocation for geo-tagged sign-in and clock-in (supports web).
+  geolocator: ^14.0.3
+
+  # iOS-style "liquid glass" bottom navigation bar (mobile only).
+  # NOTE: its shaders cannot compile for Flutter web, so it is disabled
+  # while developing in Chrome. Uncomment it (and switch AppScaffold back
+  # to LiquidGlassBar) when running on a phone/emulator.
+  # liquid_glass_bar: ^0.1.1
 
 dev_dependencies:
   flutter_test:
