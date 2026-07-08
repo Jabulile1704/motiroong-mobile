@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/services/location_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/brand.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/loading_button.dart';
+import '../../../../core/widgets/logo_lockup.dart';
 import '../providers/auth_provider.dart';
 
 /// iOS-style login screen with geo-tagged sign-in.
@@ -141,43 +143,33 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// Brand header per the logo handoff: mark + wordmark lockup, then the
+  /// "Clock in" heading and supporting subtext.
   Widget _buildHeader(ThemeData theme) {
+    final bool isDark = theme.brightness == Brightness.dark;
+
     return Column(
       children: [
-        Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.colorScheme.primary.withValues(alpha: 0.85),
-                theme.colorScheme.primary,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: const Icon(
-            CupertinoIcons.clock_fill,
-            size: 44,
-            color: Colors.white,
+        const LogoLockup(markSize: 38, wordmarkSize: 22, gap: 12),
+        const SizedBox(height: 32),
+        Text(
+          'Clock in',
+          style: TextStyle(
+            fontFamily: Brand.wordmarkFont,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            letterSpacing: Brand.wordmarkSpacing(20),
+            color: isDark ? Brand.offWhite : Brand.ink,
           ),
         ),
-        const SizedBox(height: 20),
-        Text('MoTiroong', style: theme.textTheme.headlineLarge),
         const SizedBox(height: 6),
         Text(
-          'Sign in to clock in and manage your attendance',
+          'Sign in to start your shift and manage your attendance',
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(fontSize: 15),
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Brand.lightGrey : Brand.mutedGrey,
+          ),
         ),
       ],
     );

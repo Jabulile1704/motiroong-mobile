@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:motirong/core/services/location_service.dart';
 import 'package:motirong/core/theme/app_theme.dart';
+import 'package:motirong/core/widgets/splash_screen.dart';
 import 'package:motirong/core/utils/validators.dart';
 import 'package:motirong/features/attendance/presentation/screens/home_screen.dart';
 import 'package:motirong/features/auth/presentation/providers/auth_provider.dart';
@@ -55,6 +56,16 @@ void main() {
       find.text('Sign-in unlocks once your location is verified.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Splash screen shows the brand lockup and tagline', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(wrap(const SplashScreen()));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('MoTiroong'), findsOneWidget);
+    expect(find.text('AT WORK'), findsOneWidget);
   });
 
   test('validators accept emails and employee IDs, reject junk', () {
