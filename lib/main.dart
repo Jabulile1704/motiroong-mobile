@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'app.dart';
-
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/app_scaffold.dart';
+
+import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() {
   runApp(const MotirongApp());
@@ -25,7 +25,7 @@ class MotirongApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
-      home: const AppScaffold(),
+      home: const LoginScreen(),
     );
   }
 }
