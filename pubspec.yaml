@@ -48,6 +48,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Generates launcher icons and native splash screens from the brand
+  # assets in assets/logo/ (configs at the bottom of this file).
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -65,6 +70,18 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/logo/
+
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-SemiBold.ttf
+          weight: 600
+    - family: SpaceMono
+      fonts:
+        - asset: assets/fonts/SpaceMono-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -96,3 +113,36 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# ── MoTiroong brand: launcher icon ──────────────────────────────────────
+# Generated with: dart run flutter_launcher_icons
+# Per design_handoff_motiroong_logo/README.md: dark tile is the primary
+# icon; the transparent white mark is the Android adaptive foreground on
+# an ink (#101014) background.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo/app_icon_dark_1024.png"
+  adaptive_icon_background: "#101014"
+  adaptive_icon_foreground: "assets/logo/mark_white_1024.png"
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/logo/app_icon_dark_1024.png"
+    background_color: "#101014"
+    theme_color: "#101014"
+
+# ── MoTiroong brand: native splash ──────────────────────────────────────
+# Generated with: dart run flutter_native_splash:create
+# Ink background with the white mark, per the handoff splash spec. The
+# in-app SplashScreen widget adds the wordmark, tagline and loader.
+flutter_native_splash:
+  color: "#101014"
+  image: assets/logo/mark_white_1024.png
+  color_dark: "#101014"
+  image_dark: assets/logo/mark_white_1024.png
+  android_12:
+    color: "#101014"
+    image: assets/logo/mark_white_1024.png
+    icon_background_color: "#101014"
+  web: true
