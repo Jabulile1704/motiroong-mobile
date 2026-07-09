@@ -2,6 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "motirong (Phone)",
+      "request": "launch",
+      "type": "dart"
+    },
+    {
       "name": "motirong (Chrome)",
       "request": "launch",
       "type": "dart",
