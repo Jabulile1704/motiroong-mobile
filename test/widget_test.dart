@@ -21,9 +21,10 @@ void main() {
   ) async {
     await tester.pumpWidget(wrap(const HomeScreen()));
 
-    expect(find.text('Current status'), findsOneWidget);
+    expect(find.text('CLOCKED OUT'), findsOneWidget);
+    expect(find.text('Worked today'), findsOneWidget);
     expect(find.text('Clock In'), findsOneWidget);
-    expect(find.text('Clocked out'), findsOneWidget);
+    expect(find.text("TODAY'S SHIFT"), findsOneWidget);
   });
 
   testWidgets('Home screen renders with the dark theme', (
@@ -61,7 +62,7 @@ void main() {
   testWidgets('Splash screen shows the brand lockup and tagline', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(wrap(const SplashScreen()));
+    await tester.pumpWidget(wrap(const SplashScreen(navigateOnDone: false)));
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('MoTiroong'), findsOneWidget);

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:motirong/core/widgets/splash_screen.dart';
 
+import 'package:motirong/features/attendance/presentation/screens/home_screen.dart';
+
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
-
 import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() {
@@ -25,7 +26,7 @@ class MotirongApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
-      home: const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }

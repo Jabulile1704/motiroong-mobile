@@ -6,10 +6,14 @@ import '../theme/brand.dart';
 
 /// Branded in-app splash, per the handoff splash spec: ink background,
 /// white mark, wordmark, "AT WORK" tagline, and a 3-dot loader near the
-/// bottom. Shown briefly at startup while the app initializes; it picks
-/// up seamlessly from the native splash (same ink bg + white mark).
+/// bottom. Shown at startup while the app initializes; it picks up
+/// seamlessly from the native splash (same ink bg + white mark) and then
+/// navigates on to the login screen.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.navigateOnDone = true});
+
+  /// Set false to keep the splash on screen (previews, tests).
+  final bool navigateOnDone;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -17,19 +21,28 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   int _activeDot = 0;
-  Timer? _timer;
+  Timer? _dotTimer;
+  Timer? _navTimer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 320), (_) {
+    _dotTimer = Timer.periodic(const Duration(milliseconds: 320), (_) {
       setState(() => _activeDot = (_activeDot + 1) % 3);
     });
+    if (widget.navigateOnDone) {
+      // Placeholder for real startup work (restore session, warm caches).
+      // When a saved session exists later, go straight to '/home' instead.
+      _navTimer = Timer(const Duration(milliseconds: 2200), () {
+        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+      });
+    }
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _dotTimer?.cancel();
+    _navTimer?.cancel();
     super.dispose();
   }
 

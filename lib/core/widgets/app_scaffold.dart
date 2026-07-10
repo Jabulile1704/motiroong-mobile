@@ -1,17 +1,18 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/attendance/presentation/screens/history_screen.dart';
 import '../../features/attendance/presentation/screens/home_screen.dart';
 import '../../features/exceptions/presentation/screens/exception_request_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../theme/brand.dart';
 import 'glass_nav_bar.dart';
+import 'moti_icons.dart';
 
 /// Main navigation shell.
 ///
-/// Hosts the four tab screens behind a floating iOS-style glass bottom
-/// bar. `extendBody: true` lets each page scroll underneath the
-/// translucent bar, which is what sells the glass effect.
+/// Hosts the four tab screens behind the glass tab bar. `extendBody:
+/// true` lets each page scroll underneath the translucent bar, and the
+/// IndexedStack preserves each tab's scroll position.
 class AppScaffold extends StatefulWidget {
   const AppScaffold({super.key});
 
@@ -31,26 +32,22 @@ class _AppScaffoldState extends State<AppScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final BrandPalette p = BrandPalette.forBrightness(
+      Theme.of(context).brightness,
+    );
+
     return Scaffold(
+      backgroundColor: p.background,
       extendBody: true,
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: GlassNavBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          GlassNavBarItem(iconData: CupertinoIcons.house_fill, label: 'Home'),
-          GlassNavBarItem(
-            iconData: CupertinoIcons.clock_fill,
-            label: 'History',
-          ),
-          GlassNavBarItem(
-            iconData: CupertinoIcons.doc_text_fill,
-            label: 'Requests',
-          ),
-          GlassNavBarItem(
-            iconData: CupertinoIcons.person_fill,
-            label: 'Profile',
-          ),
+          GlassNavBarItem(glyph: MotiGlyph.home, label: 'Home'),
+          GlassNavBarItem(glyph: MotiGlyph.clock, label: 'History'),
+          GlassNavBarItem(glyph: MotiGlyph.exception, label: 'Exceptions'),
+          GlassNavBarItem(glyph: MotiGlyph.person, label: 'Profile'),
         ],
       ),
     );
