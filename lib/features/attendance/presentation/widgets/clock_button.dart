@@ -1,24 +1,24 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/brand.dart';
+import '../../../../core/widgets/moti_icons.dart';
 
-/// Big circular clock in/out button — green gradient when the user can
-/// clock in, red when they can clock out, with an iOS-style press
-/// scale-down and a spinner while the action is processing.
+/// The primary clock action, per the app-screens handoff: a 132px ink
+/// circle with a filled square (clock out) or play triangle (clock in)
+/// and a label, floating on a soft shadow. Press scales it down subtly;
+/// a spinner replaces the content while the action is processing.
 class ClockButton extends StatefulWidget {
   const ClockButton({
     super.key,
     required this.clockedIn,
     required this.onPressed,
     this.busy = false,
-    this.size = 190,
   });
 
   final bool clockedIn;
   final VoidCallback onPressed;
   final bool busy;
-  final double size;
 
   @override
   State<ClockButton> createState() => _ClockButtonState();
@@ -29,10 +29,9 @@ class _ClockButtonState extends State<ClockButton> {
 
   @override
   Widget build(BuildContext context) {
-    final Brightness brightness = Theme.of(context).brightness;
-    final Color color = widget.clockedIn
-        ? AppColors.danger(brightness)
-        : AppColors.success(brightness);
+    final BrandPalette p = BrandPalette.forBrightness(
+      Theme.of(context).brightness,
+    );
 
     return GestureDetector(
       onTapDown: widget.busy ? null : (_) => setState(() => _pressed = true),
@@ -44,52 +43,42 @@ class _ClockButtonState extends State<ClockButton> {
               widget.onPressed();
             },
       child: AnimatedScale(
-        scale: _pressed ? 0.94 : 1,
+        scale: _pressed ? 0.95 : 1,
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: widget.size,
-          height: widget.size,
+        child: Container(
+          width: 132,
+          height: 132,
           decoration: BoxDecoration(
+            color: p.ink,
             shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color.withValues(alpha: 0.85), color],
-            ),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: color.withValues(alpha: 0.35),
-                blurRadius: 30,
-                offset: const Offset(0, 12),
+                color: Color(0x47101014), // rgba(16,16,20,0.28)
+                blurRadius: 32,
+                offset: Offset(0, 16),
               ),
             ],
           ),
           child: Center(
             child: widget.busy
-                ? const CupertinoActivityIndicator(
-                    radius: 16,
-                    color: Colors.white,
-                  )
+                ? CupertinoActivityIndicator(radius: 13, color: p.onInk)
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        widget.clockedIn
-                            ? CupertinoIcons.stop_fill
-                            : CupertinoIcons.play_fill,
-                        size: 44,
-                        color: Colors.white,
+                      MotiIcon(
+                        widget.clockedIn ? MotiGlyph.stop : MotiGlyph.play,
+                        size: 22,
+                        color: p.onInk,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         widget.clockedIn ? 'Clock Out' : 'Clock In',
-                        style: const TextStyle(
-                          fontSize: 17,
+                        style: TextStyle(
+                          fontFamily: Brand.wordmarkFont,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: -0.41,
-                          color: Colors.white,
+                          color: p.onInk,
                         ),
                       ),
                     ],

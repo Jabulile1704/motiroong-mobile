@@ -35,11 +35,23 @@ class DateFormatter {
   static String fullDate(DateTime d) =>
       '${_weekdays[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]}';
 
-  /// `7 July 2026`
+  /// `Jul 9, 2026`
   static String shortDate(DateTime d) =>
-      '${d.day} ${_months[d.month - 1]} ${d.year}';
+      '${_months[d.month - 1].substring(0, 3)} ${d.day}, ${d.year}';
 
-  /// `Today`, `Yesterday`, or `Fri, 3 Jul`
+  /// `9:02 AM`
+  static String time12(DateTime d) {
+    final int h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final String m = d.minute.toString().padLeft(2, '0');
+    return '$h:$m ${d.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  /// `TUESDAY, JUL 9` — screen eyebrow style.
+  static String eyebrowDate(DateTime d) =>
+      '${_weekdays[d.weekday - 1]}, ${_months[d.month - 1].substring(0, 3)} ${d.day}'
+          .toUpperCase();
+
+  /// `Today`, `Yesterday`, or `Mon, Jul 7`
   static String dayLabel(DateTime d) {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
@@ -48,7 +60,7 @@ class DateFormatter {
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
     return '${_weekdays[d.weekday - 1].substring(0, 3)}, '
-        '${d.day} ${_months[d.month - 1].substring(0, 3)}';
+        '${_months[d.month - 1].substring(0, 3)} ${d.day}';
   }
 
   /// `7h 58m`

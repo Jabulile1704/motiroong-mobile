@@ -41,6 +41,8 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      // Brand body font per the app-screens handoff.
+      fontFamily: 'SpaceGrotesk',
       platform: TargetPlatform.iOS,
       scaffoldBackgroundColor: background,
       canvasColor: background,
@@ -96,8 +98,9 @@ class AppTheme {
           backgroundColor: primary,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(50),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w600,
@@ -115,8 +118,10 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.fill(brightness),
         hintStyle: TextStyle(color: secondaryLabel, fontSize: 17),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
@@ -136,8 +141,9 @@ class AppTheme {
         brightness: brightness,
         primaryColor: primary,
         scaffoldBackgroundColor: background,
-        barBackgroundColor:
-            isDark ? const Color(0xE61C1C1E) : const Color(0xE6F2F2F7),
+        barBackgroundColor: isDark
+            ? const Color(0xE61C1C1E)
+            : const Color(0xE6F2F2F7),
       ),
     );
   }
@@ -188,17 +194,9 @@ class AppTheme {
         color: label,
       ),
       // Body
-      bodyLarge: TextStyle(
-        fontSize: 17,
-        letterSpacing: -0.41,
-        color: label,
-      ),
+      bodyLarge: TextStyle(fontSize: 17, letterSpacing: -0.41, color: label),
       // Callout
-      bodyMedium: TextStyle(
-        fontSize: 16,
-        letterSpacing: -0.31,
-        color: label,
-      ),
+      bodyMedium: TextStyle(fontSize: 16, letterSpacing: -0.31, color: label),
       // Footnote
       bodySmall: TextStyle(
         fontSize: 13,
