@@ -84,6 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
       password: _passwordController.text,
       location: _location!,
     );
+    if (!mounted || !authProvider.isSignedIn) return;
+    Navigator.of(context).pushReplacementNamed('/home');
   }
 
   @override
