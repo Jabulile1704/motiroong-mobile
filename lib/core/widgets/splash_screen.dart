@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../theme/brand.dart';
 
 /// Branded in-app splash, per the handoff splash spec: ink background,
@@ -22,7 +23,6 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   int _activeDot = 0;
   Timer? _dotTimer;
-  Timer? _navTimer;
 
   @override
   void initState() {
@@ -31,18 +31,32 @@ class _SplashScreenState extends State<SplashScreen> {
       setState(() => _activeDot = (_activeDot + 1) % 3);
     });
     if (widget.navigateOnDone) {
-      // Placeholder for real startup work (restore session, warm caches).
-      // When a saved session exists later, go straight to '/home' instead.
-      _navTimer = Timer(const Duration(milliseconds: 2200), () {
-        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-      });
+      unawaited(_restoreAndRoute());
     }
+  }
+
+  /// Restores a Firebase session, if there is one, then routes.
+  ///
+  /// Firebase persists the session across restarts, so a returning employee
+  /// should land on the home screen without seeing the login form. The splash
+  /// is held for its full animation either way — the profile call is usually
+  /// faster than that, and a splash that flickers past looks broken.
+  Future<void> _restoreAndRoute() async {
+    final Future<void> minimumHold =
+        Future<void>.delayed(const Duration(milliseconds: 2200));
+
+    await authProvider.restore();
+    await minimumHold;
+
+    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).pushReplacementNamed(authProvider.isSignedIn ? '/home' : '/login');
   }
 
   @override
   void dispose() {
     _dotTimer?.cancel();
-    _navTimer?.cancel();
     super.dispose();
   }
 

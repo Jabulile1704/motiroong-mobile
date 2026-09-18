@@ -79,10 +79,12 @@ class _LoginScreenState extends State<LoginScreen> {
       await _captureLocation();
       if (_location == null) return;
     }
+    // The fix is captured before sign-in so the location permission is
+    // settled before the first clock-in, not sent with the credentials:
+    // Firebase Auth owns identity, and the geo-tag is judged by clockIn.
     await authProvider.signIn(
       identifier: _identifierController.text.trim(),
       password: _passwordController.text,
-      location: _location!,
     );
     if (!mounted || !authProvider.isSignedIn) return;
     Navigator.of(context).pushReplacementNamed('/home');
