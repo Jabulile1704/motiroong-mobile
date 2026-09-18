@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -28,7 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final String name = authProvider.session?.fullName ?? 'Jordan Silva';
     final String initials = authProvider.session?.initials ?? 'JS';
-    final String role = authProvider.session?.role ?? 'Front Desk';
+    final String role = authProvider.session?.roleLabel ?? 'Employee';
     final String employeeId =
         authProvider.session?.employeeId.replaceAll('EMP-', '') ?? '4021';
     final String email =
@@ -208,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             isDestructiveAction: true,
             onPressed: () {
               Navigator.pop(dialogContext);
-              authProvider.signOut();
+              unawaited(authProvider.signOut());
               // Back to login, clearing the whole navigation stack.
               Navigator.of(
                 context,

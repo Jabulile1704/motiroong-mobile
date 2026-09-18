@@ -44,6 +44,33 @@ dependencies:
   # to LiquidGlassBar) when running on a phone/emulator.
   # liquid_glass_bar: ^0.1.1
 
+  # ── Backend (motiroong-backend) ───────────────────────────────────────
+  # Firebase replaces the REST API the old ApiEndpoints/auth_interceptor
+  # pair was built for: the SDK attaches and refreshes the ID token itself,
+  # so there is no bearer header or refresh rotation to manage here.
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+  # Callables carry every privileged action — clock-in, device enrolment,
+  # admin approval. See motiroong-backend/functions/src/index.ts.
+  cloud_functions: ^6.5.0
+
+  # ── Biometric sign-in ─────────────────────────────────────────────────
+  # local_auth drives the OS Face ID / fingerprint prompt. The result is a
+  # local yes/no: it never yields biometric data, it releases the device
+  # secret held in the Keychain/Keystore below.
+  local_auth: ^3.0.2
+  # Imported directly for AndroidAuthMessages / IOSAuthMessages, which
+  # customise the OS prompt. local_auth re-exports neither, so these are
+  # real dependencies rather than transitive ones.
+  local_auth_android: ^2.1.0
+  local_auth_darwin: ^1.5.0
+  # Hardware-backed storage for that secret — Keychain on iOS, EncryptedShared
+  # Preferences on Android. Never shared_preferences: that is plain text.
+  flutter_secure_storage: ^11.1.1
+  # Names the enrolled device in "your devices" so a user can tell two apart.
+  device_info_plus: ^13.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

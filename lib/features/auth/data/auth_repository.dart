@@ -1,54 +1,339 @@
-import '../../../core/services/location_service.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../../core/network/api_exception.dart';
+import '../../../core/network/functions_client.dart';
+import '../../../core/services/biometric_service.dart';
+import '../../../core/services/secure_storage_services.dart';
 import 'models/auth_response.dart';
 
-class AuthException implements Exception {
-  const AuthException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+/// Kept so existing `catch (AuthException)` blocks still compile. New code
+/// should catch [AppException], which carries the backend's error code.
+class AuthException extends AppException {
+  const AuthException(super.message, {super.code, super.cause});
 }
 
-/// Talks to the auth backend.
+/// Identity, against Firebase Auth and the backend's callables.
 ///
-/// Currently simulates the network call so the flow can be built and
-/// tested end-to-end before the real API exists. Swap the body of
-/// [signIn] for a POST to [ApiEndpoints.login] when the backend is ready
-/// — the geo-tag is already part of the request payload.
+/// Two ways in, and they are not variations of the same thing:
+///
+///   * **Password** — `signInWithEmailAndPassword`, straight to Firebase Auth.
+///     We never see or transmit the password ourselves.
+///   * **Biometric** — the OS checks the user's face or fingerprint, which
+///     releases the device secret from the Keychain/Keystore; we present that
+///     secret to `signInWithDevice` and get back a custom token. The biometric
+///     itself never leaves the phone, so the app's privacy claim is literally
+///     true. What the server verifies is possession of an enrolled device plus
+///     a local user-presence check.
+///
+/// Neither path yields a token this class has to store. Firebase owns the
+/// session; `authStateChanges()` is the source of truth.
 class AuthRepository {
-  const AuthRepository();
+  const AuthRepository({
+    FunctionsClient functions = const FunctionsClient(),
+    SecureStorageService storage = const SecureStorageService(),
+    BiometricService biometrics = const BiometricService(),
+  }) : _functions = functions,
+       _storage = storage,
+       _biometrics = biometrics;
 
+  final FunctionsClient _functions;
+  final SecureStorageService _storage;
+  final BiometricService _biometrics;
+
+  static FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  /// Fires on sign-in, sign-out and token refresh. The app listens to this
+  /// rather than tracking sessions itself.
+  Stream<User?> authStateChanges() => _auth.authStateChanges();
+
+  User? get currentUser => _auth.currentUser;
+
+  // ------------------------------------------------------------- password
+
+  /// Signs in with an email address and password.
+  ///
+  /// Employee numbers are deliberately not accepted here. Firebase Auth
+  /// identifies users by email, and the only way to accept `EMP-0042` would
+  /// be a public endpoint that turns a staff number into an email address —
+  /// which is a staff directory anyone can enumerate. The staff number is
+  /// accepted on the biometric path instead, where it is useless without the
+  /// device secret.
   Future<AuthResponse> signIn({
     required String identifier,
     required String password,
-    required LocationResult location,
   }) async {
-    // Simulated request. The real implementation will send:
-    // { "identifier": ..., "password": ..., "location": location.toJson() }
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-
-    // Demo failure path so the error UI can be exercised: use the
-    // password "wrong" to see a rejected login.
-    if (password.toLowerCase() == 'wrong') {
-      throw const AuthException('Incorrect email/employee ID or password.');
+    final String email = identifier.trim();
+    if (!email.contains('@')) {
+      throw const AuthException(
+        'Please sign in with your work email address. Your employee number '
+        'works once you have set up fingerprint or Face ID sign-in.',
+        code: 'invalid-argument',
+      );
     }
 
-    final String name = identifier.contains('@')
-        ? identifier.split('@').first.replaceAll('.', ' ')
-        : 'Employee $identifier';
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_passwordMessage(e), code: e.code, cause: e);
+    }
 
-    return AuthResponse(
-      token: 'demo-token-${DateTime.now().millisecondsSinceEpoch}',
-      employeeId: identifier.contains('@') ? 'EMP-0001' : identifier,
-      fullName: _titleCase(name),
-      role: 'Employee',
+    return loadProfile();
+  }
+
+  /// Creates the Firebase Auth user, then the `pending` employee profile.
+  ///
+  /// Order matters and is not negotiable: `createEmployeeProfile` is a
+  /// callable that requires a signed-in caller, so the auth user must exist
+  /// first. It is idempotent, so a retry after a dropped connection returns
+  /// the existing profile instead of stranding the user with an email address
+  /// they can no longer reuse.
+  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    String? employeeId,
+    String? phone,
+    String? department,
+  }) async {
+    try {
+      await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_signUpMessage(e), code: e.code, cause: e);
+    }
+
+    try {
+      await _functions.call('createEmployeeProfile', <String, dynamic>{
+        'fullName': fullName.trim(),
+        if (employeeId != null && employeeId.trim().isNotEmpty)
+          'employeeId': employeeId.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (department != null && department.trim().isNotEmpty)
+          'department': department.trim(),
+      });
+    } on AppException {
+      // The auth user exists but has no profile — an unusable half-account.
+      // Roll it back so the address stays available.
+      await _cancelHalfFinishedSignUp();
+      rethrow;
+    }
+
+    return loadProfile();
+  }
+
+  Future<void> _cancelHalfFinishedSignUp() async {
+    try {
+      await _functions.call('cancelSignUp');
+    } catch (e) {
+      debugPrint('cancelSignUp failed, leaving orphaned auth user: $e');
+    }
+  }
+
+  /// Sends a password reset email. Never reveals whether the address exists.
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') return;
+      throw AuthException(
+        e.message ?? 'Could not send the reset email. Please try again.',
+        code: e.code,
+        cause: e,
+      );
+    }
+  }
+
+  // ------------------------------------------------------------ biometric
+
+  /// True when this phone has a secret bound to an account, so the login
+  /// screen can offer the biometric button before anyone signs in.
+  Future<bool> hasBiometricEnrollment() => _storage.hasBiometricEnrollment();
+
+  Future<String?> enrolledDisplayName() => _storage.readEnrolledDisplayName();
+
+  /// Binds this device for biometric sign-in.
+  ///
+  /// Must be called while already signed in and active. The secret is
+  /// generated here, written to the Keychain/Keystore behind the biometric
+  /// gate, and only its SHA-256 is sent — `enrollDevice` never receives the
+  /// secret it is storing a hash of.
+  Future<AuthResponse> enrollBiometrics({required AuthResponse session}) async {
+    await _requireBiometricCheck(
+      'Confirm it is you to turn on biometric sign-in for MoTiroong.',
+      cancelled: 'Biometric setup was cancelled.',
+    );
+
+    final String secret = SecureStorageService.generateDeviceSecret();
+    final String deviceId = await _storage.deviceId();
+    final BiometricKind kind = await _biometrics.primaryKind();
+    final ({String platform, String model}) device = await _describeDevice();
+
+    final Map<String, dynamic> result = await _functions
+        .call('enrollDevice', <String, dynamic>{
+          'deviceId': deviceId,
+          'secret': secret,
+          'platform': device.platform,
+          'model': device.model,
+          'biometricType': kind.wireName,
+        });
+
+    // Written only after the backend has accepted the hash. The other order
+    // leaves a secret on the phone that no server will ever recognise.
+    await _storage.writeDeviceSecret(secret);
+    await _storage.writeEnrollment(
+      employeeId: session.employeeId,
+      displayName: session.fullName,
+    );
+
+    return session.copyWith(
+      biometricEnrolled: true,
+      deviceCount: session.deviceCount + (result['enrolled'] == true ? 1 : 0),
     );
   }
 
-  static String _titleCase(String s) => s
-      .split(' ')
-      .where((w) => w.isNotEmpty)
-      .map((w) => w[0].toUpperCase() + w.substring(1))
-      .join(' ');
+  /// Signs in using the enrolled device.
+  ///
+  /// The OS prompt happens first and entirely on the phone. A pass releases
+  /// the secret; the server hashes what we present and compares it in
+  /// constant time. Five failures lock the device and force a password
+  /// sign-in.
+  Future<AuthResponse> signInWithBiometrics() async {
+    final String? employeeId = await _storage.readEnrolledEmployeeId();
+    final String? secret = await _storage.readDeviceSecret();
+    if (employeeId == null || secret == null) {
+      throw const AuthException(
+        'Biometric sign-in is not set up on this device yet.',
+        code: 'not-enrolled',
+      );
+    }
+
+    await _requireBiometricCheck(
+      'Sign in to MoTiroong',
+      cancelled: 'Sign-in was cancelled.',
+    );
+
+    final String deviceId = await _storage.deviceId();
+    final Map<String, dynamic> result = await _functions
+        .call('signInWithDevice', <String, dynamic>{
+          'employeeId': employeeId,
+          'deviceId': deviceId,
+          'secret': secret,
+        });
+
+    final String? token = result['token'] as String?;
+    if (token == null) {
+      throw const AuthException(
+        'Biometric sign-in could not be completed. Please use your password.',
+        code: 'internal',
+      );
+    }
+
+    // The custom token carries `biometric: true`, which is what lets clockIn
+    // record that a shift was started from a verified session. The app cannot
+    // assert that flag on its own, which is the point.
+    await _auth.signInWithCustomToken(token);
+    return loadProfile();
+  }
+
+  /// Forgets this device's binding locally and on the server.
+  Future<void> revokeBiometrics() async {
+    final String deviceId = await _storage.deviceId();
+    try {
+      await _functions.call('revokeDevice', <String, dynamic>{
+        'deviceId': deviceId,
+      });
+    } on AppException catch (e) {
+      // A device the server has already forgotten is still worth clearing here.
+      if (e.code != 'not-found') rethrow;
+    } finally {
+      await _storage.clearBiometricEnrollment();
+    }
+  }
+
+  /// Runs the OS prompt and turns its three outcomes into two.
+  ///
+  /// The prompt can pass, be dismissed, or fail for a device reason — no
+  /// fingerprints enrolled, sensor locked out after too many attempts. Only
+  /// the first is a success. The other two carry messages the user can act on,
+  /// so they are translated here rather than left to escape as a
+  /// `BiometricException` and surface as "something went wrong".
+  Future<void> _requireBiometricCheck(
+    String reason, {
+    required String cancelled,
+  }) async {
+    final bool passed;
+    try {
+      passed = await _biometrics.authenticate(reason: reason);
+    } on BiometricException catch (e) {
+      throw AuthException(e.message, code: 'biometric-unavailable', cause: e);
+    }
+    if (!passed) throw AuthException(cancelled, code: 'aborted');
+  }
+
+  // -------------------------------------------------------------- profile
+
+  /// Reads the caller's profile and approval state.
+  ///
+  /// Called after every sign-in and on resume. Status is re-read here rather
+  /// than trusted from the ID token because claims lag by up to an hour, and
+  /// an hour is long enough for a suspended employee to finish a shift.
+  Future<AuthResponse> loadProfile() async {
+    final Map<String, dynamic> json = await _functions.call('getMyProfile');
+    return AuthResponse.fromJson(json);
+  }
+
+  Future<void> signOut() => _auth.signOut();
+
+  /// Signs out and wipes the device binding — "this is not my phone any more".
+  Future<void> signOutAndForgetDevice() async {
+    await revokeBiometrics();
+    await _auth.signOut();
+  }
+
+  // --------------------------------------------------------------- detail
+
+  Future<({String platform, String model})> _describeDevice() async {
+    final DeviceInfoPlugin info = DeviceInfoPlugin();
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final IosDeviceInfo ios = await info.iosInfo;
+        return (platform: 'ios', model: ios.utsname.machine);
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final AndroidDeviceInfo android = await info.androidInfo;
+        return (platform: 'android', model: '${android.manufacturer} ${android.model}');
+      }
+    } catch (e) {
+      debugPrint('Could not read device info: $e');
+    }
+    return (platform: defaultTargetPlatform.name, model: 'Unknown device');
+  }
+
+  static String _passwordMessage(FirebaseAuthException e) => switch (e.code) {
+    'invalid-credential' ||
+    'wrong-password' ||
+    'user-not-found' => 'Incorrect email address or password.',
+    'invalid-email' => 'That does not look like a valid email address.',
+    'user-disabled' =>
+      'This account has been disabled. Please contact your administrator.',
+    'too-many-requests' =>
+      'Too many attempts. Wait a few minutes before trying again.',
+    'network-request-failed' =>
+      'Cannot reach MoTiroong. Check your connection and try again.',
+    _ => e.message ?? 'Could not sign in. Please try again.',
+  };
+
+  static String _signUpMessage(FirebaseAuthException e) => switch (e.code) {
+    'email-already-in-use' =>
+      'That email address is already registered. Try signing in instead.',
+    'invalid-email' => 'That does not look like a valid email address.',
+    'weak-password' => 'Choose a password of at least 8 characters.',
+    'operation-not-allowed' =>
+      'Registration is closed. Please contact your administrator.',
+    _ => e.message ?? 'Could not create your account. Please try again.',
+  };
 }
