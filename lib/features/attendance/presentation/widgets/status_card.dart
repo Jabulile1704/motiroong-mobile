@@ -16,7 +16,7 @@ class StatusCard extends StatelessWidget {
     this.location,
   });
 
-  final ClockStatus status;
+  final ClockState status;
   final DateTime? since;
   final String? location;
 
@@ -25,11 +25,9 @@ class StatusCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final Brightness brightness = theme.brightness;
 
-    final Color statusColor = switch (status) {
-      ClockStatus.clockedIn => AppColors.success(brightness),
-      ClockStatus.clockedOut => AppColors.secondaryLabel(brightness),
-      ClockStatus.onBreak => AppColors.warning(brightness),
-    };
+    final Color statusColor = status.clockedIn
+        ? AppColors.success(brightness)
+        : AppColors.secondaryLabel(brightness);
 
     return Card(
       child: Padding(

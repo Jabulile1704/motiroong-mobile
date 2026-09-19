@@ -64,7 +64,7 @@ dependencies:
   # customise the OS prompt. local_auth re-exports neither, so these are
   # real dependencies rather than transitive ones.
   local_auth_android: ^2.1.0
-  local_auth_darwin: ^1.5.0
+  local_auth_darwin: ^2.0.0
   # Hardware-backed storage for that secret — Keychain on iOS, EncryptedShared
   # Preferences on Android. Never shared_preferences: that is plain text.
   flutter_secure_storage: ^11.1.1

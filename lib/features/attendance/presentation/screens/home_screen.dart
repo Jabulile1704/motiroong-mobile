@@ -7,6 +7,8 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/widgets/screen_header.dart';
 import '../../../../core/widgets/status_pill.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../data/models/attendance_record.dart';
+import '../providers/attendance_provider.dart';
 import '../widgets/clock_button.dart';
 
 /// Home, per the app-screens handoff: date eyebrow + greeting, the dark
@@ -20,38 +22,52 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _busy = false;
-  bool _clockedIn = false;
-  DateTime? _clockInTime;
   Timer? _ticker;
 
   // Demo weekly hours (Mon..Sun) until the attendance repository lands.
   static const List<double> _weekHours = [6.5, 8, 4.7, 0, 0, 0, 0];
 
   @override
+  void initState() {
+    super.initState();
+    attendanceProvider.addListener(_onAttendanceChanged);
+    attendanceProvider.refresh();
+    // Keep the elapsed time live while clocked in.
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (attendanceProvider.isClockedIn) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
+    attendanceProvider.removeListener(_onAttendanceChanged);
     _ticker?.cancel();
     super.dispose();
   }
 
+  void _onAttendanceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The server decides the verdict; this only reports it.
   Future<void> _toggleClock() async {
-    setState(() => _busy = true);
-    // Placeholder for the real attendance repository call
-    // (location check + API request + offline queue).
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    final ClockResult? result = attendanceProvider.isClockedIn
+        ? await attendanceProvider.clockOut()
+        : await attendanceProvider.clockIn();
     if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _clockedIn = !_clockedIn;
-      _clockInTime = _clockedIn ? DateTime.now() : null;
-    });
-    // Keep the elapsed time live while clocked in.
-    _ticker?.cancel();
-    if (_clockedIn) {
-      _ticker = Timer.periodic(
-        const Duration(minutes: 1),
-        (_) => setState(() {}),
-      );
+
+    final String? error = attendanceProvider.error;
+    final String? message = result == null
+        ? error
+        : result.isFlagged
+        ? 'Recorded, but flagged: ${result.flags.map((f) => f.name).join(', ')}'
+        : result.siteName != null
+        ? 'Recorded at ${result.siteName}'
+        : null;
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -80,13 +96,16 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 6),
           ScreenTitle('${DateFormatter.greeting(now)}, $firstName'),
           const SizedBox(height: 22),
-          _StatusCard(clockedIn: _clockedIn, since: _clockInTime),
+          _StatusCard(
+            clockedIn: attendanceProvider.isClockedIn,
+            since: attendanceProvider.state.since?.toLocal(),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 28),
             child: Center(
               child: ClockButton(
-                clockedIn: _clockedIn,
-                busy: _busy,
+                clockedIn: attendanceProvider.isClockedIn,
+                busy: attendanceProvider.isBusy,
                 onPressed: _toggleClock,
               ),
             ),
