@@ -183,6 +183,20 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Saves a new phone number. Returns an error message, or null on success.
+  Future<String?> updatePhone(String phone) async {
+    final AuthResponse? current = session;
+    if (current == null) return 'Please sign in again.';
+    try {
+      final String saved = await _repository.updatePhone(phone);
+      _state = AuthSignedIn(current.copyWith(phone: saved));
+      notifyListeners();
+      return null;
+    } on AppException catch (e) {
+      return e.message;
+    }
+  }
+
   /// Re-reads the profile — after an admin approves the account, say.
   Future<void> refreshProfile() async {
     if (session == null) return;
