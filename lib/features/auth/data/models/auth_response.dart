@@ -45,6 +45,7 @@ class AuthResponse {
     required this.role,
     required this.status,
     this.statusReason,
+    this.phone,
     this.siteId,
     this.department,
     this.biometricEnrolled = false,
@@ -65,6 +66,9 @@ class AuthResponse {
   /// Why an account was rejected or suspended, so the app can explain itself
   /// rather than showing a dead end.
   final String? statusReason;
+
+  /// As the employee entered it at sign-up or on the profile screen.
+  final String? phone;
   final String? siteId;
   final String? department;
 
@@ -100,24 +104,29 @@ class AuthResponse {
     role: json['role'] as String? ?? 'employee',
     status: EmployeeStatus.parse(json['status'] as String?),
     statusReason: json['statusReason'] as String?,
+    phone: json['phone'] as String?,
     siteId: json['siteId'] as String?,
     department: json['department'] as String?,
     biometricEnrolled: json['biometricEnrolled'] as bool? ?? false,
     deviceCount: (json['deviceCount'] as num?)?.toInt() ?? 0,
   );
 
-  AuthResponse copyWith({bool? biometricEnrolled, int? deviceCount}) =>
-      AuthResponse(
-        uid: uid,
-        employeeId: employeeId,
-        fullName: fullName,
-        email: email,
-        role: role,
-        status: status,
-        statusReason: statusReason,
-        siteId: siteId,
-        department: department,
-        biometricEnrolled: biometricEnrolled ?? this.biometricEnrolled,
-        deviceCount: deviceCount ?? this.deviceCount,
-      );
+  AuthResponse copyWith({
+    bool? biometricEnrolled,
+    int? deviceCount,
+    String? phone,
+  }) => AuthResponse(
+    uid: uid,
+    employeeId: employeeId,
+    fullName: fullName,
+    email: email,
+    role: role,
+    status: status,
+    statusReason: statusReason,
+    phone: phone ?? this.phone,
+    siteId: siteId,
+    department: department,
+    biometricEnrolled: biometricEnrolled ?? this.biometricEnrolled,
+    deviceCount: deviceCount ?? this.deviceCount,
+  );
 }

@@ -1,6 +1,7 @@
 import '../../../core/network/functions_client.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/secure_storage_services.dart';
+import '../../exceptions/data/exception_request.dart';
 import 'models/attendance_record.dart';
 
 /// Clocking, history and exception requests.
@@ -41,22 +42,26 @@ class AttendanceRepository {
   /// with no way to record that they worked, and the usual result of that is a
   /// paper note nobody reconciles.
   Future<ClockResult> clockIn({required LocationResult location}) async {
-    final Map<String, dynamic> json = await _functions
-        .call('clockIn', <String, dynamic>{
-          'location': _geoPoint(location),
-          'deviceId': await _storage.deviceId(),
-        });
+    final Map<String, dynamic> json = await _functions.call(
+      'clockIn',
+      <String, dynamic>{
+        'location': _geoPoint(location),
+        'deviceId': await _storage.deviceId(),
+      },
+    );
     return ClockResult.fromJson(json);
   }
 
   /// Closes the open shift. Duration is computed from the two server
   /// timestamps, so it cannot be inflated from the phone.
   Future<ClockResult> clockOut({required LocationResult location}) async {
-    final Map<String, dynamic> json = await _functions
-        .call('clockOut', <String, dynamic>{
-          'location': _geoPoint(location),
-          'deviceId': await _storage.deviceId(),
-        });
+    final Map<String, dynamic> json = await _functions.call(
+      'clockOut',
+      <String, dynamic>{
+        'location': _geoPoint(location),
+        'deviceId': await _storage.deviceId(),
+      },
+    );
     return ClockResult.fromJson(json);
   }
 
@@ -68,16 +73,21 @@ class AttendanceRepository {
     int limit = 30,
     DateTime? before,
   }) async {
-    final Map<String, dynamic> json = await _functions
-        .call('getAttendanceHistory', <String, dynamic>{
-          'limit': limit,
-          if (before != null) 'before': before.toUtc().toIso8601String(),
-        });
+    final Map<String, dynamic> json = await _functions.call(
+      'getAttendanceHistory',
+      <String, dynamic>{
+        'limit': limit,
+        if (before != null) 'before': before.toUtc().toIso8601String(),
+      },
+    );
 
     final List<dynamic> raw = json['records'] as List<dynamic>? ?? const [];
     return (
       records: raw
-          .map((r) => AttendanceRecord.fromJson(Map<String, dynamic>.from(r as Map)))
+          .map(
+            (r) =>
+                AttendanceRecord.fromJson(Map<String, dynamic>.from(r as Map)),
+          )
           .toList(),
       hasMore: json['hasMore'] as bool? ?? false,
     );
@@ -86,8 +96,10 @@ class AttendanceRepository {
   /// A single record — used by the exception screen to show what is being
   /// explained.
   Future<AttendanceRecord> record(String recordId) async {
-    final Map<String, dynamic> json = await _functions
-        .call('getAttendanceRecord', <String, dynamic>{'recordId': recordId});
+    final Map<String, dynamic> json = await _functions.call(
+      'getAttendanceRecord',
+      <String, dynamic>{'recordId': recordId},
+    );
     return AttendanceRecord.fromJson(json);
   }
 
@@ -107,25 +119,33 @@ class AttendanceRepository {
   /// `other`. [reason] must be at least 10 characters — the backend enforces
   /// that, because a one-word reason is not a reason a supervisor can act on.
   Future<String> submitException({
-    required String type,
+    required ExceptionType type,
     required String reason,
+    DateTime? forDate,
     String? attendanceId,
   }) async {
     final Map<String, dynamic> json = await _functions
         .call('submitException', <String, dynamic>{
-          'type': type,
+          'type': type.wireName,
           'reason': reason,
+          if (forDate != null) 'forDate': wireDay(forDate),
           if (attendanceId != null) 'attendanceId': attendanceId,
         });
     return json['exceptionId'] as String? ?? '';
   }
 
   /// The caller's own exception requests and where each one stands.
-  Future<List<Map<String, dynamic>>> myExceptions({int limit = 30}) async {
-    final Map<String, dynamic> json = await _functions
-        .call('listMyExceptions', <String, dynamic>{'limit': limit});
+  Future<List<ExceptionRequest>> myExceptions({int limit = 30}) async {
+    final Map<String, dynamic> json = await _functions.call(
+      'listMyExceptions',
+      <String, dynamic>{'limit': limit},
+    );
     final List<dynamic> raw = json['exceptions'] as List<dynamic>? ?? const [];
-    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    return raw
+        .map(
+          (e) => ExceptionRequest.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
   }
 
   /// The wire shape `parseGeoPoint` expects. `capturedAt` is the phone's own

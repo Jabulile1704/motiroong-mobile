@@ -27,6 +27,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _name = TextEditingController();
   final TextEditingController _email = TextEditingController();
+  final TextEditingController _phone = TextEditingController();
   final TextEditingController _employeeId = TextEditingController();
   final TextEditingController _department = TextEditingController();
   final TextEditingController _password = TextEditingController();
@@ -49,6 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     for (final TextEditingController c in [
       _name,
       _email,
+      _phone,
       _employeeId,
       _department,
       _password,
@@ -66,6 +68,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       email: _email.text,
       password: _password.text,
       fullName: _name.text,
+      phone: _phone.text,
       employeeId: _employeeId.text,
       department: _department.text,
     );
@@ -148,6 +151,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
                     validator: Validators.email,
+                  ),
+                  _Field(
+                    label: 'Phone number',
+                    hint: 'e.g. 082 555 1234',
+                    controller: _phone,
+                    enabled: !busy,
+                    keyboardType: TextInputType.phone,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                    validator: Validators.phone,
                   ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
