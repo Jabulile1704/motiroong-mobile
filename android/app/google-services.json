@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:168910544315:android:8fd94c6bfede98d784389e",
+        "android_client_info": {
+          "package_name": "com.jabulile.motiroong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsTwNPUb1imoylDRUyHfWmYdMdyqWV168"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:168910544315:android:5dd44244cbd8cbc584389e",
         "android_client_info": {
           "package_name": "mo.tiroong"

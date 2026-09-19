@@ -38,7 +38,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDsTwNPUb1imoylDRUyHfWmYdMdyqWV168',
-    appId: '1:168910544315:android:c25b501bb5f2e53f84389e',
+    appId: '1:168910544315:android:8fd94c6bfede98d784389e',
     messagingSenderId: '168910544315',
     projectId: 'motirong-32a1c',
     storageBucket: 'motirong-32a1c.firebasestorage.app',
