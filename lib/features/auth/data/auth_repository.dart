@@ -8,6 +8,17 @@ import '../../../core/services/biometric_service.dart';
 import '../../../core/services/secure_storage_services.dart';
 import 'models/auth_response.dart';
 
+/// The two ways a phone can be set up for quick sign-in.
+enum QuickSignIn {
+  biometric,
+  pin;
+
+  static QuickSignIn parse(String? value) =>
+      value == 'pin' ? QuickSignIn.pin : QuickSignIn.biometric;
+
+  String get wireName => name;
+}
+
 /// Kept so existing `catch (AuthException)` blocks still compile. New code
 /// should catch [AppException], which carries the backend's error code.
 class AuthException extends AppException {
@@ -103,7 +114,14 @@ class AuthRepository {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      throw AuthException(_signUpMessage(e), code: e.code, cause: e);
+      // The address may belong to a sign-up that never finished (account
+      // created, profile call lost) or to this very person on a new phone.
+      // With the right password, carry on: createEmployeeProfile is
+      // idempotent and returns the existing profile if there is one.
+      if (e.code != 'email-already-in-use' ||
+          !await _trySignIn(email.trim(), password)) {
+        throw AuthException(_signUpMessage(e), code: e.code, cause: e);
+      }
     }
 
     try {
@@ -124,6 +142,20 @@ class AuthRepository {
 
     return loadProfile();
   }
+
+  Future<bool> _trySignIn(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      return true;
+    } on FirebaseAuthException {
+      return false;
+    }
+  }
+
+  /// See [SecureStorageService.markRegistered].
+  Future<void> markRegistered() => _storage.markRegistered();
+
+  Future<bool> isRegistered() => _storage.isRegistered();
 
   Future<void> _cancelHalfFinishedSignUp() async {
     try {
@@ -147,7 +179,7 @@ class AuthRepository {
     }
   }
 
-  // ------------------------------------------------------------ biometric
+  // ---------------------------------------------------------- quick sign-in
 
   /// True when this phone has a secret bound to an account, so the login
   /// screen can offer the biometric button before anyone signs in.
@@ -155,17 +187,40 @@ class AuthRepository {
 
   Future<String?> enrolledDisplayName() => _storage.readEnrolledDisplayName();
 
-  /// Binds this device for biometric sign-in.
+  Future<String?> enrolledEmployeeId() => _storage.readEnrolledEmployeeId();
+
+  /// How this phone signs in: [QuickSignIn.biometric] or [QuickSignIn.pin].
+  Future<QuickSignIn> enrolledMethod() async =>
+      QuickSignIn.parse(await _storage.readEnrolledMethod());
+
+  /// Face ID, fingerprint, or nothing usable — drives the sign-up choice.
+  Future<BiometricAvailability> biometricAvailability() =>
+      _biometrics.availability();
+
+  Future<BiometricKind> biometricKind() => _biometrics.primaryKind();
+
+  /// Binds this device for quick sign-in: Face ID / fingerprint, or a PIN.
   ///
-  /// Must be called while already signed in and active. The secret is
-  /// generated here, written to the Keychain/Keystore behind the biometric
-  /// gate, and only its SHA-256 is sent — `enrollDevice` never receives the
-  /// secret it is storing a hash of.
-  Future<AuthResponse> enrollBiometrics({required AuthResponse session}) async {
-    await _requireBiometricCheck(
-      'Confirm it is you to turn on biometric sign-in for MoTiroong.',
-      cancelled: 'Biometric setup was cancelled.',
-    );
+  /// Called while signed in — straight after sign-up (the account is still
+  /// pending, which the backend allows) or later from Settings. A fresh
+  /// device secret is generated here and stored in the Keychain/Keystore.
+  ///
+  /// * Biometric: the OS prompt must pass first; the server gets the secret
+  ///   and keeps only its SHA-256.
+  /// * PIN: no OS prompt. The server keeps an HMAC of the PIN keyed with the
+  ///   secret, so signing in later needs both this phone and the PIN, and
+  ///   five wrong PINs lock it.
+  Future<AuthResponse> enrollQuickSignIn({
+    required AuthResponse session,
+    required QuickSignIn method,
+    String? pin,
+  }) async {
+    if (method == QuickSignIn.biometric) {
+      await _requireBiometricCheck(
+        'Confirm it is you to turn on quick sign-in for MoTiroong.',
+        cancelled: 'Setup was cancelled.',
+      );
+    }
 
     final String secret = SecureStorageService.generateDeviceSecret();
     final String deviceId = await _storage.deviceId();
@@ -178,7 +233,9 @@ class AuthRepository {
           'secret': secret,
           'platform': device.platform,
           'model': device.model,
-          'biometricType': kind.wireName,
+          'method': method.wireName,
+          if (method == QuickSignIn.biometric) 'biometricType': kind.wireName,
+          if (method == QuickSignIn.pin) 'pin': pin,
         });
 
     // Written only after the backend has accepted the hash. The other order
@@ -187,6 +244,7 @@ class AuthRepository {
     await _storage.writeEnrollment(
       employeeId: session.employeeId,
       displayName: session.fullName,
+      method: method.wireName,
     );
 
     return session.copyWith(
@@ -202,19 +260,26 @@ class AuthRepository {
   /// constant time. Five failures lock the device and force a password
   /// sign-in.
   Future<AuthResponse> signInWithBiometrics() async {
-    final String? employeeId = await _storage.readEnrolledEmployeeId();
-    final String? secret = await _storage.readDeviceSecret();
-    if (employeeId == null || secret == null) {
-      throw const AuthException(
-        'Biometric sign-in is not set up on this device yet.',
-        code: 'not-enrolled',
-      );
-    }
-
     await _requireBiometricCheck(
       'Sign in to MoTiroong',
       cancelled: 'Sign-in was cancelled.',
     );
+    return _signInWithDevice();
+  }
+
+  /// Signs in on a PIN-enrolled device. The server checks the PIN against an
+  /// HMAC keyed with this phone's secret; five wrong tries lock the device.
+  Future<AuthResponse> signInWithPin(String pin) => _signInWithDevice(pin: pin);
+
+  Future<AuthResponse> _signInWithDevice({String? pin}) async {
+    final String? employeeId = await _storage.readEnrolledEmployeeId();
+    final String? secret = await _storage.readDeviceSecret();
+    if (employeeId == null || secret == null) {
+      throw const AuthException(
+        'Quick sign-in is not set up on this device yet.',
+        code: 'not-enrolled',
+      );
+    }
 
     final String deviceId = await _storage.deviceId();
     final Map<String, dynamic> result = await _functions
@@ -222,6 +287,7 @@ class AuthRepository {
           'employeeId': employeeId,
           'deviceId': deviceId,
           'secret': secret,
+          if (pin != null) 'pin': pin,
         });
 
     final String? token = result['token'] as String?;
@@ -305,7 +371,10 @@ class AuthRepository {
       }
       if (defaultTargetPlatform == TargetPlatform.android) {
         final AndroidDeviceInfo android = await info.androidInfo;
-        return (platform: 'android', model: '${android.manufacturer} ${android.model}');
+        return (
+          platform: 'android',
+          model: '${android.manufacturer} ${android.model}',
+        );
       }
     } catch (e) {
       debugPrint('Could not read device info: $e');

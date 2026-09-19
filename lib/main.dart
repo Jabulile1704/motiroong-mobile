@@ -30,7 +30,7 @@ Future<void> main() async {
   );
 
   if (kUseEmulators) {
-    FunctionsClient.useEmulators(host: kEmulatorHost);
+    await FunctionsClient.useEmulators(host: kEmulatorHost);
   }
 
   runApp(const MotirongApp());

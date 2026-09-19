@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "168910544315",
+    "project_id": "motirong-32a1c",
+    "storage_bucket": "motirong-32a1c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168910544315:android:c25b501bb5f2e53f84389e",
+        "android_client_info": {
+          "package_name": "com.example.motirong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsTwNPUb1imoylDRUyHfWmYdMdyqWV168"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168910544315:android:5dd44244cbd8cbc584389e",
+        "android_client_info": {
+          "package_name": "mo.tiroong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsTwNPUb1imoylDRUyHfWmYdMdyqWV168"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

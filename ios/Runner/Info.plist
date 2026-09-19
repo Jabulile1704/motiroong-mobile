@@ -26,6 +26,23 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<!-- Allows plain HTTP to the Firebase Emulator Suite on the local
+		     network during development. Scoped to local addresses only: the
+		     deployed app still talks to Firebase over HTTPS, and ATS is not
+		     disabled globally. -->
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsLocalNetworking</key>
+			<true/>
+		</dict>
+		<!-- Required. local_auth triggers Face ID, and iOS terminates an app
+		     that asks without this key rather than showing a prompt. -->
+		<key>NSFaceIDUsageDescription</key>
+		<string>MoTiroong uses Face ID to confirm it is you before signing you in and recording a shift. Your face data never leaves this device.</string>
+		<!-- iOS 14+ asks the user before an app may reach other devices on the
+		     same Wi-Fi. Without it, the emulator connection fails silently. -->
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>MoTiroong connects to a development server on your local network while testing.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>MoTiroong uses your location to geo-tag sign-ins and verify that you clock in from your workplace.</string>
 		<key>UIApplicationSceneManifest</key>
