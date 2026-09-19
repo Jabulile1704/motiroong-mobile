@@ -43,6 +43,20 @@ class Validators {
     return null;
   }
 
+  /// Mirrors the backend's `normalisePhone`: digits, spaces, dashes,
+  /// brackets and a leading +, with 9 to 15 digits.
+  static String? phone(String? value) {
+    final String v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Enter your phone number';
+    if (!RegExp(r'^\+?[\d\s()-]+$').hasMatch(v)) {
+      return 'Digits, spaces and dashes only';
+    }
+    final int digits = v.replaceAll(RegExp(r'\D'), '').length;
+    if (digits < 9 || digits > 15)
+      return 'Enter a full number, e.g. 082 555 1234';
+    return null;
+  }
+
   /// Firebase Auth and the backend both require 8 or more characters.
   static String? newPassword(String? value) {
     final String v = value ?? '';

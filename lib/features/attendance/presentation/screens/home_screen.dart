@@ -24,14 +24,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _ticker;
 
-  // Demo weekly hours (Mon..Sun) until the attendance repository lands.
-  static const List<double> _weekHours = [6.5, 8, 4.7, 0, 0, 0, 0];
-
   @override
   void initState() {
     super.initState();
     attendanceProvider.addListener(_onAttendanceChanged);
     attendanceProvider.refresh();
+    // History feeds the weekly chart and today's total; sites name the card.
+    attendanceProvider.loadHistory();
+    attendanceProvider.loadSites();
     // Keep the elapsed time live while clocked in.
     _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (attendanceProvider.isClockedIn) setState(() {});
@@ -110,35 +110,118 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          BrandCard(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionLabel("Today's shift"),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '9:00 AM – 5:00 PM',
-                      style: TextStyle(
-                        fontFamily: Brand.wordmarkFont,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: p.ink,
-                      ),
-                    ),
-                    const StatusPill('Front Desk'),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _TodayCard(now: now),
           const SizedBox(height: 20),
-          const SectionLabel('This week'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SectionLabel('This week'),
+              Text(
+                '${_weekTotal(now).toStringAsFixed(1)} h',
+                style: TextStyle(
+                  fontFamily: Brand.taglineFont,
+                  fontSize: 11,
+                  color: p.muted,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          _WeekChart(hours: _weekHours, today: now.weekday - 1),
+          _WeekChart(hours: _weekHours(now), today: now.weekday - 1),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hours worked on each day of the current week (Monday first), from the
+/// employee's own shifts. An open shift counts up to now.
+List<double> _weekHours(DateTime now) {
+  final DateTime monday = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: now.weekday - 1));
+  final List<double> hours = List<double>.filled(7, 0);
+  for (final AttendanceRecord r in attendanceProvider.history) {
+    final DateTime start = r.clockInAt;
+    final int index = DateTime(
+      start.year,
+      start.month,
+      start.day,
+    ).difference(monday).inDays;
+    if (index < 0 || index > 6) continue;
+    hours[index] += r.workedDuration.inMinutes / 60;
+  }
+  return hours;
+}
+
+double _weekTotal(DateTime now) => _weekHours(now).fold(0, (a, b) => a + b);
+
+/// Today at a glance: time worked so far and where. Replaces the handoff's
+/// fixed "9:00 AM – 5:00 PM" card — the backend records shifts, not rosters,
+/// so there is no scheduled shift to show.
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.now});
+
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final BrandPalette p = BrandPalette.forBrightness(
+      Theme.of(context).brightness,
+    );
+    final DateTime midnight = DateTime(now.year, now.month, now.day);
+    final List<AttendanceRecord> today = attendanceProvider.history
+        .where((r) => !r.clockInAt.isBefore(midnight))
+        .toList();
+    final Duration worked = today.fold(
+      Duration.zero,
+      (total, r) => total + r.workedDuration,
+    );
+
+    // Where: the open shift's site, else the home site HR assigned.
+    final String? siteId =
+        attendanceProvider.state.siteId ?? authProvider.session?.siteId;
+    final String site = siteId == null
+        ? 'No site yet'
+        : attendanceProvider.siteNames[siteId] ?? 'Your site';
+
+    final String headline = today.isEmpty
+        ? 'Not clocked in yet'
+        : '${DateFormatter.duration(worked)} worked';
+    final String detail = today.isEmpty
+        ? 'Tap the button above to start your shift.'
+        : 'First in at ${DateFormatter.time12(today.last.clockInAt)}'
+              '${today.length > 1 ? ' · ${today.length} shifts' : ''}';
+
+    return BrandCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('Today'),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  headline,
+                  style: TextStyle(
+                    fontFamily: Brand.wordmarkFont,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: p.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(child: StatusPill(site)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(detail, style: TextStyle(fontSize: 12, color: p.muted)),
         ],
       ),
     );

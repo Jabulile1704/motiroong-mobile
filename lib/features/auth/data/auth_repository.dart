@@ -165,6 +165,16 @@ class AuthRepository {
     }
   }
 
+  /// Saves the caller's phone number and returns it as the backend stored it
+  /// (spacing normalised).
+  Future<String> updatePhone(String phone) async {
+    final Map<String, dynamic> json = await _functions.call(
+      'updateMyProfile',
+      <String, dynamic>{'phone': phone.trim()},
+    );
+    return json['phone'] as String? ?? phone.trim();
+  }
+
   /// Sends a password reset email. Never reveals whether the address exists.
   Future<void> sendPasswordReset(String email) async {
     try {

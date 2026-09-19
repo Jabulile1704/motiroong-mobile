@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.motirong"
+    namespace = "com.jabulile.motiroong"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.motirong"
+        applicationId = "com.jabulile.motiroong"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -45,4 +45,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // local_auth's fingerprint prompt needs an AppCompat window theme on
+    // Android 8 and below (see res/values*/styles.xml).
+    implementation("androidx.appcompat:appcompat:1.7.0")
 }

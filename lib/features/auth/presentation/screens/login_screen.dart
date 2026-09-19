@@ -252,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
   /// "Face ID", "Fingerprint" or "PIN" — whatever this phone was sealed with.
   String _quickTitle() => _method == QuickSignIn.pin
       ? 'PIN'
-      : (_kind == BiometricKind.none ? 'Face ID' : _kind.title);
+      : (_kind == BiometricKind.none ? defaultBiometricTitle() : _kind.title);
 
   /// Direction C, "Tap your card to sign in".
   Widget _buildQuick(ThemeData theme, Brightness brightness) {

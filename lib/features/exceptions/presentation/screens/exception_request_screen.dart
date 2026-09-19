@@ -6,34 +6,17 @@ import '../../../../core/utils/date_formatter.dart';
 import '../../../../core/widgets/moti_icons.dart';
 import '../../../../core/widgets/screen_header.dart';
 import '../../../../core/widgets/status_pill.dart';
+import '../../../attendance/presentation/providers/attendance_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../data/exception_request.dart';
 
-enum _ExceptionType {
-  lateArrival('Late'),
-  absence('Absence'),
-  earlyLeave('Early Leave');
-
-  const _ExceptionType(this.label);
-  final String label;
-}
-
-enum _RequestStatus { approved, pending, denied }
-
-class _ExceptionRequest {
-  const _ExceptionRequest({
-    required this.title,
-    required this.reason,
-    required this.status,
-  });
-
-  final String title;
-  final String reason;
-  final _RequestStatus status;
-}
-
-/// Exceptions, per the app-screens handoff: the new-request form
-/// (segmented type, date pill, reason field, dark submit) and the
-/// Recent list using the fill/outline/faded status language.
+/// Exceptions, per the app-screens handoff: the new-request form (type,
+/// date pill, reason field, dark submit) and the Recent list using the
+/// fill/outline/faded status language.
+///
+/// Requests go to `submitException` and are reviewed by a supervisor or
+/// admin in the admin dashboard; Recent is `listMyExceptions`, so a decision
+/// shows up here with the reviewer's note.
 class ExceptionRequestScreen extends StatefulWidget {
   const ExceptionRequestScreen({super.key});
 
@@ -42,39 +25,43 @@ class ExceptionRequestScreen extends StatefulWidget {
 }
 
 class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
-  _ExceptionType _type = _ExceptionType.lateArrival;
+  /// The backend insists on this much, so a reviewer has something to act on.
+  static const int _minReason = 10;
+
+  ExceptionType _type = ExceptionType.lateArrival;
   DateTime _date = DateTime.now();
   final TextEditingController _reasonController = TextEditingController();
   bool _submitting = false;
 
-  final List<_ExceptionRequest> _recent = [
-    const _ExceptionRequest(
-      title: 'Late — Jul 3',
-      reason: 'Traffic delay',
-      status: _RequestStatus.approved,
-    ),
-    const _ExceptionRequest(
-      title: 'Early Leave — Jun 28',
-      reason: 'Medical appointment',
-      status: _RequestStatus.pending,
-    ),
-    const _ExceptionRequest(
-      title: 'Absence — Jun 14',
-      reason: 'No documentation provided',
-      status: _RequestStatus.denied,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    attendanceProvider.addListener(_changed);
+    _reasonController.addListener(_changed);
+    if (!attendanceProvider.exceptionsLoaded) {
+      attendanceProvider.loadExceptions();
+    }
+  }
 
   @override
   void dispose() {
+    attendanceProvider.removeListener(_changed);
     _reasonController.dispose();
     super.dispose();
   }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _canSubmit =>
+      !_submitting && _reasonController.text.trim().length >= _minReason;
 
   Future<void> _pickDate() async {
     final BrandPalette p = BrandPalette.forBrightness(
       Theme.of(context).brightness,
     );
+    final DateTime now = DateTime.now();
     DateTime selected = _date;
     await showCupertinoModalPopup<void>(
       context: context,
@@ -97,7 +84,9 @@ class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.date,
                   initialDateTime: _date,
-                  maximumDate: DateTime.now().add(const Duration(days: 365)),
+                  // The backend accepts a year back and 60 days ahead.
+                  minimumDate: now.subtract(const Duration(days: 365)),
+                  maximumDate: now.add(const Duration(days: 60)),
                   onDateTimeChanged: (value) => selected = value,
                 ),
               ),
@@ -112,23 +101,27 @@ class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
-    // Placeholder for the real exceptions API call.
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    final bool ok = await attendanceProvider.submitException(
+      type: _type,
+      reason: _reasonController.text.trim(),
+      forDate: _date,
+    );
     if (!mounted) return;
-    final String reason = _reasonController.text.trim();
-    setState(() {
-      _submitting = false;
-      _recent.insert(
-        0,
-        _ExceptionRequest(
-          title:
-              '${_type.label} — ${DateFormatter.shortDate(_date).split(',').first}',
-          reason: reason.isEmpty ? 'No reason provided' : reason,
-          status: _RequestStatus.pending,
-        ),
-      );
+    setState(() => _submitting = false);
+
+    final String message = ok
+        ? 'Request sent. Your supervisor will review it.'
+        : attendanceProvider.error ?? 'Could not send the request.';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+    if (ok) {
       _reasonController.clear();
-    });
+      setState(() {
+        _type = ExceptionType.lateArrival;
+        _date = DateTime.now();
+      });
+    }
   }
 
   @override
@@ -136,132 +129,168 @@ class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
     final BrandPalette p = BrandPalette.forBrightness(
       Theme.of(context).brightness,
     );
+    final List<ExceptionRequest> recent = attendanceProvider.exceptions;
+    final int typed = _reasonController.text.trim().length;
 
     return Scaffold(
       backgroundColor: p.background,
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          MediaQuery.paddingOf(context).top + 14,
-          20,
-          108,
-        ),
-        children: [
-          ScreenHeader(initials: authProvider.session?.initials ?? 'JS'),
-          const SizedBox(height: 26),
-          const SectionEyebrow('Requests'),
-          const SizedBox(height: 6),
-          const ScreenTitle('Exceptions'),
-          const SizedBox(height: 20),
-          BrandCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionLabel('New request'),
-                const SizedBox(height: 12),
-                _buildSegmentedControl(p),
-                const SizedBox(height: 16),
-                _fieldLabel('Date', p),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: _pickDate,
-                  child: Container(
-                    height: 46,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+      body: RefreshIndicator(
+        color: p.ink,
+        onRefresh: attendanceProvider.loadExceptions,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.paddingOf(context).top + 14,
+            20,
+            108,
+          ),
+          children: [
+            ScreenHeader(initials: authProvider.session?.initials),
+            const SizedBox(height: 26),
+            const SectionEyebrow('Requests'),
+            const SizedBox(height: 6),
+            const ScreenTitle('Exceptions'),
+            const SizedBox(height: 20),
+            BrandCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionLabel('New request'),
+                  const SizedBox(height: 12),
+                  _buildTypeChips(p),
+                  const SizedBox(height: 16),
+                  _fieldLabel('Date', p),
+                  const SizedBox(height: 6),
+                  Semantics(
+                    button: true,
+                    label: 'Date, ${DateFormatter.shortDate(_date)}',
+                    child: GestureDetector(
+                      onTap: _submitting ? null : _pickDate,
+                      child: Container(
+                        height: 46,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: p.field,
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              DateFormatter.shortDate(_date),
+                              style: TextStyle(
+                                fontFamily: Brand.wordmarkFont,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: p.ink,
+                              ),
+                            ),
+                            const MotiIcon(
+                              MotiGlyph.calendar,
+                              size: 16,
+                              color: Brand.placeholderGrey,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _fieldLabel('Reason', p),
+                  const SizedBox(height: 6),
+                  Container(
                     decoration: BoxDecoration(
                       color: p.field,
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          DateFormatter.shortDate(_date),
-                          style: TextStyle(
-                            fontFamily: Brand.wordmarkFont,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: p.ink,
-                          ),
-                        ),
-                        const MotiIcon(
-                          MotiGlyph.calendar,
-                          size: 16,
-                          color: Brand.placeholderGrey,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _fieldLabel('Reason', p),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: p.field,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: TextField(
-                    controller: _reasonController,
-                    enabled: !_submitting,
-                    minLines: 3,
-                    maxLines: 4,
-                    style: TextStyle(
-                      fontFamily: Brand.wordmarkFont,
-                      fontSize: 13,
-                      color: p.ink,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: 'Explain what happened…',
-                      hintStyle: TextStyle(
+                    child: TextField(
+                      controller: _reasonController,
+                      enabled: !_submitting,
+                      minLines: 3,
+                      maxLines: 5,
+                      maxLength: 1000,
+                      style: TextStyle(
                         fontFamily: Brand.wordmarkFont,
                         fontSize: 13,
-                        color: Brand.placeholderGrey,
+                        color: p.ink,
                       ),
-                      filled: false,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+                      decoration: const InputDecoration(
+                        hintText: 'Explain what happened…',
+                        hintStyle: TextStyle(
+                          fontFamily: Brand.wordmarkFont,
+                          fontSize: 13,
+                          color: Brand.placeholderGrey,
+                        ),
+                        counterText: '',
+                        filled: false,
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: _submitting ? null : _submit,
-                  child: Container(
-                    height: 48,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: p.ink,
-                      borderRadius: BorderRadius.circular(12),
+                  if (typed > 0 && typed < _minReason) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'A few more words, please (at least $_minReason characters).',
+                      style: TextStyle(fontSize: 12, color: p.muted),
                     ),
-                    child: _submitting
-                        ? CupertinoActivityIndicator(color: p.onInk)
-                        : Text(
-                            'Submit Exception',
-                            style: TextStyle(
-                              fontFamily: Brand.wordmarkFont,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: p.onInk,
-                            ),
+                  ],
+                  const SizedBox(height: 16),
+                  Semantics(
+                    button: true,
+                    enabled: _canSubmit,
+                    child: GestureDetector(
+                      onTap: _canSubmit ? _submit : null,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 150),
+                        opacity: _canSubmit || _submitting ? 1 : 0.45,
+                        child: Container(
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: p.ink,
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          child: _submitting
+                              ? CupertinoActivityIndicator(color: p.onInk)
+                              : Text(
+                                  'Submit Exception',
+                                  style: TextStyle(
+                                    fontFamily: Brand.wordmarkFont,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: p.onInk,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            const SectionLabel('Recent'),
+            const SizedBox(height: 10),
+            if (!attendanceProvider.exceptionsLoaded)
+              const Center(child: CupertinoActivityIndicator())
+            else if (recent.isEmpty)
+              Text(
+                'No requests yet.',
+                style: TextStyle(fontSize: 13, color: p.muted),
+              )
+            else
+              for (final ExceptionRequest r in recent)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _RequestRow(request: r),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          const SectionLabel('Recent'),
-          const SizedBox(height: 10),
-          for (final _ExceptionRequest r in _recent)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _RequestRow(request: r),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -275,44 +304,41 @@ class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
     ),
   );
 
-  Widget _buildSegmentedControl(BrandPalette p) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: p.field,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          for (final _ExceptionType t in _ExceptionType.values) ...[
-            if (t != _ExceptionType.values.first) const SizedBox(width: 4),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _type = t),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _type == t ? p.ink : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    t.label,
-                    style: TextStyle(
-                      fontFamily: Brand.wordmarkFont,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _type == t ? p.onInk : p.muted,
-                    ),
+  /// Every request type the backend accepts, as a wrap of pills.
+  Widget _buildTypeChips(BrandPalette p) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final ExceptionType t in ExceptionType.values)
+          Semantics(
+            button: true,
+            selected: _type == t,
+            child: GestureDetector(
+              onTap: _submitting ? null : () => setState(() => _type = t),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: _type == t ? p.ink : p.field,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  t.label,
+                  style: TextStyle(
+                    fontFamily: Brand.wordmarkFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _type == t ? p.onInk : p.muted,
                   ),
                 ),
               ),
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -320,25 +346,30 @@ class _ExceptionRequestScreenState extends State<ExceptionRequestScreen> {
 class _RequestRow extends StatelessWidget {
   const _RequestRow({required this.request});
 
-  final _ExceptionRequest request;
+  final ExceptionRequest request;
 
   @override
   Widget build(BuildContext context) {
     final BrandPalette p = BrandPalette.forBrightness(
       Theme.of(context).brightness,
     );
-    final bool denied = request.status == _RequestStatus.denied;
+    final ExceptionRequest r = request;
+    final bool denied = r.status == ExceptionStatus.rejected;
+    final DateTime? day = r.forDate ?? r.submittedAt;
+    final String title = day == null
+        ? r.type.label
+        : '${r.type.label} — ${DateFormatter.shortDate(day).split(',').first}';
 
-    final StatusPill pill = switch (request.status) {
-      _RequestStatus.approved => const StatusPill(
+    final StatusPill pill = switch (r.status) {
+      ExceptionStatus.approved => const StatusPill(
         'Approved',
         style: StatusPillStyle.inverse,
       ),
-      _RequestStatus.pending => const StatusPill(
+      ExceptionStatus.pending => const StatusPill(
         'Pending',
         style: StatusPillStyle.outlined,
       ),
-      _RequestStatus.denied => const StatusPill(
+      ExceptionStatus.rejected => const StatusPill(
         'Denied',
         style: StatusPillStyle.faded,
       ),
@@ -352,14 +383,13 @@ class _RequestRow extends StatelessWidget {
         border: Border.all(color: p.hairline),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  request.title,
+                  title,
                   style: TextStyle(
                     fontFamily: Brand.wordmarkFont,
                     fontSize: 14,
@@ -369,13 +399,27 @@ class _RequestRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  request.reason,
+                  r.reason,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: Brand.wordmarkFont,
                     fontSize: 12,
                     color: denied ? p.faded : p.muted,
                   ),
                 ),
+                if (r.reviewNotes != null && r.reviewNotes!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Reviewer: ${r.reviewNotes}',
+                    style: TextStyle(
+                      fontFamily: Brand.wordmarkFont,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: p.ink,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

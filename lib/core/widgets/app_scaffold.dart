@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../features/attendance/presentation/providers/attendance_provider.dart';
 import '../../features/attendance/presentation/screens/history_screen.dart';
+import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/attendance/presentation/screens/home_screen.dart';
 import '../../features/exceptions/presentation/screens/exception_request_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -30,6 +32,22 @@ class _AppScaffoldState extends State<AppScaffold> {
     ProfileScreen(),
   ];
 
+  /// Switching tabs re-fetches that tab's data, so a supervisor's decision
+  /// or a shift closed on another device shows up without a manual refresh.
+  void _select(int index) {
+    setState(() => _currentIndex = index);
+    switch (index) {
+      case 0:
+        attendanceProvider.refresh();
+      case 1:
+        attendanceProvider.loadHistory();
+      case 2:
+        attendanceProvider.loadExceptions();
+      case 3:
+        authProvider.refreshProfile();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final BrandPalette p = BrandPalette.forBrightness(
@@ -42,7 +60,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: GlassNavBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _select,
         items: const [
           GlassNavBarItem(glyph: MotiGlyph.home, label: 'Home'),
           GlassNavBarItem(glyph: MotiGlyph.clock, label: 'History'),

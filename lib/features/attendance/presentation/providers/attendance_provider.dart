@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/location_service.dart';
 import '../../data/attendance_repository.dart';
+import '../../../exceptions/data/exception_request.dart';
 import '../../data/models/attendance_record.dart';
 
 /// Clock state for the home and history screens.
@@ -39,6 +42,17 @@ class AttendanceProvider extends ChangeNotifier {
 
   List<AttendanceRecord> _history = const <AttendanceRecord>[];
   List<AttendanceRecord> get history => _history;
+  bool _historyLoaded = false;
+  bool get historyLoaded => _historyLoaded;
+
+  List<ExceptionRequest> _exceptions = const <ExceptionRequest>[];
+  List<ExceptionRequest> get exceptions => _exceptions;
+  bool _exceptionsLoaded = false;
+  bool get exceptionsLoaded => _exceptionsLoaded;
+
+  /// Site id → name, for "Bram Fischer Building" rather than an id.
+  Map<String, String> _siteNames = const <String, String>{};
+  Map<String, String> get siteNames => _siteNames;
   bool _hasMoreHistory = false;
   bool get hasMoreHistory => _hasMoreHistory;
 
@@ -79,6 +93,8 @@ class AttendanceProvider extends ChangeNotifier {
 
       _lastResult = result;
       _state = await _repository.getClockStatus();
+      // The new or closed shift belongs on the weekly chart and in History.
+      unawaited(loadHistory());
       return result;
     } on LocationException catch (e) {
       _error = e.message;
@@ -102,15 +118,38 @@ class AttendanceProvider extends ChangeNotifier {
     } on AppException catch (e) {
       _error = e.message;
     }
+    _historyLoaded = true;
+    notifyListeners();
+  }
+
+  /// The active sites, for showing names instead of ids. Failure is quiet:
+  /// screens fall back to "Your site".
+  Future<void> loadSites() async {
+    try {
+      final sites = await _repository.sites();
+      _siteNames = {for (final s in sites) s.siteId: s.name};
+      notifyListeners();
+    } on AppException {
+      // Names are cosmetic.
+    }
+  }
+
+  /// The employee's own requests, newest first.
+  Future<void> loadExceptions() async {
+    try {
+      _exceptions = await _repository.myExceptions();
+      _error = null;
+    } on AppException catch (e) {
+      _error = e.message;
+    }
+    _exceptionsLoaded = true;
     notifyListeners();
   }
 
   Future<void> loadMoreHistory() async {
     if (!_hasMoreHistory || _history.isEmpty) return;
     try {
-      final result = await _repository.history(
-        before: _history.last.clockInAt,
-      );
+      final result = await _repository.history(before: _history.last.clockInAt);
       _history = <AttendanceRecord>[..._history, ...result.records];
       _hasMoreHistory = result.hasMore;
     } on AppException catch (e) {
@@ -121,17 +160,20 @@ class AttendanceProvider extends ChangeNotifier {
 
   /// Files an explanation for a flagged event.
   Future<bool> submitException({
-    required String type,
+    required ExceptionType type,
     required String reason,
+    DateTime? forDate,
     String? attendanceId,
   }) async {
     try {
       await _repository.submitException(
         type: type,
         reason: reason,
+        forDate: forDate,
         attendanceId: attendanceId,
       );
       _error = null;
+      await loadExceptions();
       return true;
     } on AppException catch (e) {
       _error = e.message;
@@ -150,6 +192,10 @@ class AttendanceProvider extends ChangeNotifier {
   void reset() {
     _state = const ClockState.clockedOut();
     _history = const <AttendanceRecord>[];
+    _historyLoaded = false;
+    _exceptions = const <ExceptionRequest>[];
+    _exceptionsLoaded = false;
+    _siteNames = const <String, String>{};
     _lastResult = null;
     _error = null;
     _hasMoreHistory = false;
