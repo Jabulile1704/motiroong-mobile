@@ -46,3 +46,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // local_auth's fingerprint prompt needs an AppCompat window theme on
+    // Android 8 and below (see res/values*/styles.xml).
+    implementation("androidx.appcompat:appcompat:1.7.0")
+}
