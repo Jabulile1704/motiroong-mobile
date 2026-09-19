@@ -19,4 +19,34 @@ class Validators {
     if (v.length < 4) return 'Password must be at least 4 characters';
     return null;
   }
+
+  static String? fullName(String? value) {
+    final String v = value?.trim() ?? '';
+    if (v.length < 2) return 'Enter your full name';
+    return null;
+  }
+
+  static String? email(String? value) {
+    final String v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Enter your work email';
+    if (!_email.hasMatch(v)) return 'Enter a valid email address';
+    return null;
+  }
+
+  /// Matches the backend's `claimEmployeeId`: letters, digits and dashes.
+  static String? optionalEmployeeId(String? value) {
+    final String v = value?.trim() ?? '';
+    if (v.isEmpty) return null;
+    if (!RegExp(r'^[A-Za-z0-9-]{3,32}$').hasMatch(v)) {
+      return 'Letters, numbers and dashes only';
+    }
+    return null;
+  }
+
+  /// Firebase Auth and the backend both require 8 or more characters.
+  static String? newPassword(String? value) {
+    final String v = value ?? '';
+    if (v.length < 8) return 'Use at least 8 characters';
+    return null;
+  }
 }

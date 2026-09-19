@@ -56,6 +56,8 @@ class SecureStorageService {
   static const String _kDeviceId = 'moti.device.id';
   static const String _kEmployeeId = 'moti.biometric.employeeId';
   static const String _kDisplayName = 'moti.biometric.displayName';
+  static const String _kMethod = 'moti.signin.method';
+  static const String _kRegistered = 'moti.device.registered';
 
   // ---------------------------------------------------------------- secret
 
@@ -83,6 +85,18 @@ class SecureStorageService {
     return generated;
   }
 
+  // ------------------------------------------------------- registration
+
+  /// Set once anyone has registered or signed in on this phone, so the app
+  /// opens on sign-in rather than sign-up from then on. On iOS the Keychain
+  /// keeps it across a reinstall, which is the behaviour we want: the phone
+  /// has an account behind it.
+  Future<void> markRegistered() =>
+      _storage.write(key: _kRegistered, value: 'true');
+
+  Future<bool> isRegistered() async =>
+      await _storage.read(key: _kRegistered) == 'true';
+
   // ------------------------------------------------------ enrolment record
 
   /// Remembers who this device is enrolled for.
@@ -94,13 +108,19 @@ class SecureStorageService {
   Future<void> writeEnrollment({
     required String employeeId,
     required String displayName,
+    required String method,
   }) async {
     await _storage.write(key: _kEmployeeId, value: employeeId);
     await _storage.write(key: _kDisplayName, value: displayName);
+    await _storage.write(key: _kMethod, value: method);
   }
 
-  Future<String?> readEnrolledEmployeeId() =>
-      _storage.read(key: _kEmployeeId);
+  /// `biometric` or `pin`. Enrolments from before PIN support have no value
+  /// and were biometric.
+  Future<String> readEnrolledMethod() async =>
+      await _storage.read(key: _kMethod) ?? 'biometric';
+
+  Future<String?> readEnrolledEmployeeId() => _storage.read(key: _kEmployeeId);
 
   Future<String?> readEnrolledDisplayName() =>
       _storage.read(key: _kDisplayName);
@@ -125,6 +145,7 @@ class SecureStorageService {
     await _storage.delete(key: _kDeviceSecret);
     await _storage.delete(key: _kEmployeeId);
     await _storage.delete(key: _kDisplayName);
+    await _storage.delete(key: _kMethod);
   }
 
   /// Wipes everything, including the device id.
@@ -141,10 +162,7 @@ class SecureStorageService {
   /// would be seeded predictably and is not safe for this.
   static String _randomHex(int bytes) {
     final Random rng = Random.secure();
-    final List<int> values = List<int>.generate(
-      bytes,
-      (_) => rng.nextInt(256),
-    );
+    final List<int> values = List<int>.generate(bytes, (_) => rng.nextInt(256));
     return values.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
