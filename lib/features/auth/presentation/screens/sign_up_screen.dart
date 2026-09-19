@@ -96,15 +96,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        tooltip: 'Back to sign in',
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
-                        onPressed: busy
-                            ? null
-                            : () => Navigator.of(context).maybePop(),
-                        icon: Icon(CupertinoIcons.back, color: p.ink),
-                      ),
+                      // On a first launch this is the app's entry screen and
+                      // there is nothing to go back to: registering is
+                      // required. From the sign-in screen's "Create an
+                      // account" link, back returns there.
+                      if (Navigator.of(context).canPop())
+                        IconButton(
+                          tooltip: 'Back to sign in',
+                          padding: EdgeInsets.zero,
+                          alignment: Alignment.centerLeft,
+                          onPressed: busy
+                              ? null
+                              : () => Navigator.of(context).maybePop(),
+                          icon: Icon(CupertinoIcons.back, color: p.ink),
+                        )
+                      else
+                        const SizedBox(height: 48),
                       const SectionEyebrow('1 / 2'),
                     ],
                   ),

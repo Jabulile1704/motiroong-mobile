@@ -13,7 +13,8 @@ import 'features/auth/presentation/screens/sign_up_screen.dart';
 /// Registers the iOS-inspired light and dark themes, follows the device
 /// appearance via [ThemeMode.system], and defines the navigation flow:
 ///
-///   '/'       SplashScreen — shown at launch, auto-navigates to /login
+///   '/'       SplashScreen — /signup on a phone nobody has registered on,
+///             otherwise /login (or straight in with a live session)
 ///   '/login'  LoginScreen  — card (Face ID / fingerprint / PIN) or password
 ///   '/signup' SignUpScreen — details, then seal to this phone
 ///   '/pending' PendingApprovalScreen — signed in, account not yet active

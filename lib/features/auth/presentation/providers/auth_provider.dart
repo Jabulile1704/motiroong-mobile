@@ -50,6 +50,12 @@ class AuthProvider extends ChangeNotifier {
 
   Future<QuickSignIn> get enrolledMethod => _repository.enrolledMethod();
 
+  /// True once anyone has registered or signed in on this phone. A phone
+  /// that never has opens on sign-up; one that has opens on sign-in.
+  Future<bool> get isRegisteredDevice async =>
+      await _repository.isRegistered() ||
+      await _repository.hasBiometricEnrollment();
+
   Future<String?> get enrolledEmployeeId => _repository.enrolledEmployeeId();
 
   Future<BiometricAvailability> get biometricAvailability =>
@@ -74,6 +80,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       _state = AuthSignedIn(await _repository.loadProfile());
+      await _repository.markRegistered();
     } on AppException {
       // A session whose profile we cannot read is not a usable session.
       await _repository.signOut();
@@ -131,6 +138,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _state = AuthSignedIn(await action());
+      await _repository.markRegistered();
     } on AppException catch (e) {
       // A cancelled biometric prompt is not a failure worth shouting about —
       // the user tapped away on purpose.

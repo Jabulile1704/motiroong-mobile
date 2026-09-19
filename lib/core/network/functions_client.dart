@@ -1,7 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'api_exception.dart';
 
@@ -25,34 +28,26 @@ class FunctionsClient {
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: region);
 
+  /// Base URL of the local Functions emulator, set by [useEmulators].
+  static Uri? _emulatorBase;
+
   /// Points the client at a locally running emulator suite.
   ///
   /// Call once from `main()` when `--dart-define=USE_EMULATORS=true`. On a
   /// physical phone `host` must be your machine's LAN address, not
   /// `localhost` — the phone's localhost is the phone.
+  ///
+  /// Callables then go over plain HTTP from Dart rather than through the
+  /// SDK. The iOS SDK refuses to attach the user's token to HTTP unless the
+  /// host is loopback ("Refusing to send Auth, FCM and AppCheck tokens over
+  /// HTTP to non-loopback host"), and its only override exists in debug
+  /// builds — which cannot be launched wirelessly. The emulator speaks the
+  /// same callable protocol either way, and this path is never taken
+  /// against the deployed project.
   static Future<void> useEmulators({String host = 'localhost'}) async {
-    _functions.useFunctionsEmulator(host, 5001);
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
-
-    // The iOS SDK will not attach the user's token to plain HTTP unless the
-    // host is loopback — so a physical iPhone pointed at the Mac's LAN IP
-    // fails every signed-in call with "Refusing to send Auth, FCM and
-    // AppCheck tokens over HTTP to non-loopback host". AppDelegate.swift
-    // flips the SDK's debug-only override; release builds have no such
-    // channel, and the call below simply fails harmlessly.
-    final bool loopback = host == 'localhost' || host == '127.0.0.1';
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && !loopback) {
-      try {
-        await const MethodChannel('motiroong/emulator')
-            .invokeMethod<bool>('allowInsecureFunctionsTokens', region);
-      } on MissingPluginException {
-        debugPrint(
-          'Functions emulator on $host needs a debug build on a physical '
-          'iPhone (flutter run --debug); release builds refuse to send the '
-          'sign-in token over HTTP.',
-        );
-      }
-    }
+    final String projectId = Firebase.app().options.projectId;
+    _emulatorBase = Uri.parse('http://$host:5001/$projectId/$region/');
   }
 
   /// Calls [name] and returns its payload as a map.
@@ -65,6 +60,9 @@ class FunctionsClient {
     String name, [
     Map<String, dynamic>? payload,
   ]) async {
+    final Uri? emulator = _emulatorBase;
+    if (emulator != null) return _callEmulator(emulator.resolve(name), payload);
+
     try {
       final HttpsCallableResult<dynamic> result = await _functions
           .httpsCallable(name)
@@ -84,6 +82,64 @@ class FunctionsClient {
     }
   }
 
+  /// The callable protocol by hand, for the emulator only: POST `{data}` with
+  /// the caller's ID token, receive `{result}` or `{error: {message,
+  /// status}}`.
+  Future<Map<String, dynamic>> _callEmulator(
+    Uri url,
+    Map<String, dynamic>? payload,
+  ) async {
+    final String? idToken = await FirebaseAuth.instance.currentUser
+        ?.getIdToken();
+    final HttpClient client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
+    try {
+      final HttpClientRequest request = await client.postUrl(url);
+      request.headers.contentType = ContentType.json;
+      if (idToken != null) {
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $idToken');
+      }
+      request.write(jsonEncode(<String, dynamic>{'data': payload ?? {}}));
+      final HttpClientResponse response = await request.close().timeout(
+        const Duration(seconds: 70),
+      );
+      final String body = await response.transform(utf8.decoder).join();
+      final dynamic json = body.isEmpty ? null : jsonDecode(body);
+
+      if (json is Map && json['error'] is Map) {
+        final Map<dynamic, dynamic> error = json['error'] as Map;
+        final String code = (error['status'] as String? ?? 'INTERNAL')
+            .toLowerCase()
+            .replaceAll('_', '-');
+        final String message = (error['message'] as String? ?? '').trim();
+        throw AppException(
+          message.isNotEmpty && message != 'INTERNAL'
+              ? message
+              : 'Something went wrong. Please try again.',
+          code: code,
+        );
+      }
+      final dynamic data = json is Map ? json['result'] : null;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return <String, dynamic>{'value': data};
+    } on SocketException catch (e) {
+      throw AppException(
+        'Cannot reach the MoTiroong emulator at ${url.host}. Is it running, '
+        'and is this phone on the same Wi-Fi?',
+        code: 'unavailable',
+        cause: e,
+      );
+    } on TimeoutException catch (e) {
+      throw AppException(
+        'That took too long. Please try again.',
+        code: 'deadline-exceeded',
+        cause: e,
+      );
+    } finally {
+      client.close();
+    }
+  }
+
   /// The backend writes user-facing text into `HttpsError`'s message on every
   /// deliberate failure, so prefer it. The fallbacks below only cover the
   /// cases the SDK raises on its own — no network, a cold start that ran long,
@@ -98,8 +154,7 @@ class FunctionsClient {
         'Cannot reach MoTiroong right now. Check your connection and try again.',
       'deadline-exceeded' => 'That took too long. Please try again.',
       'unauthenticated' => 'Please sign in again to continue.',
-      'permission-denied' =>
-        'You do not have permission to do that.',
+      'permission-denied' => 'You do not have permission to do that.',
       _ => 'Something went wrong. Please try again.',
     };
   }

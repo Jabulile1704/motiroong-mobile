@@ -47,11 +47,15 @@ class _SplashScreenState extends State<SplashScreen> {
     );
 
     await authProvider.restore();
+    // A phone nobody has registered on opens on sign-up; after that, sign-in.
+    final bool registered = await authProvider.isRegisteredDevice;
     await minimumHold;
 
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(
-      authProvider.isSignedIn ? authProvider.homeRoute : '/login',
+      authProvider.isSignedIn
+          ? authProvider.homeRoute
+          : (registered ? '/login' : '/signup'),
     );
   }
 

@@ -57,6 +57,7 @@ class SecureStorageService {
   static const String _kEmployeeId = 'moti.biometric.employeeId';
   static const String _kDisplayName = 'moti.biometric.displayName';
   static const String _kMethod = 'moti.signin.method';
+  static const String _kRegistered = 'moti.device.registered';
 
   // ---------------------------------------------------------------- secret
 
@@ -83,6 +84,18 @@ class SecureStorageService {
     await _storage.write(key: _kDeviceId, value: generated);
     return generated;
   }
+
+  // ------------------------------------------------------- registration
+
+  /// Set once anyone has registered or signed in on this phone, so the app
+  /// opens on sign-in rather than sign-up from then on. On iOS the Keychain
+  /// keeps it across a reinstall, which is the behaviour we want: the phone
+  /// has an account behind it.
+  Future<void> markRegistered() =>
+      _storage.write(key: _kRegistered, value: 'true');
+
+  Future<bool> isRegistered() async =>
+      await _storage.read(key: _kRegistered) == 'true';
 
   // ------------------------------------------------------ enrolment record
 

@@ -114,7 +114,14 @@ class AuthRepository {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      throw AuthException(_signUpMessage(e), code: e.code, cause: e);
+      // The address may belong to a sign-up that never finished (account
+      // created, profile call lost) or to this very person on a new phone.
+      // With the right password, carry on: createEmployeeProfile is
+      // idempotent and returns the existing profile if there is one.
+      if (e.code != 'email-already-in-use' ||
+          !await _trySignIn(email.trim(), password)) {
+        throw AuthException(_signUpMessage(e), code: e.code, cause: e);
+      }
     }
 
     try {
@@ -135,6 +142,20 @@ class AuthRepository {
 
     return loadProfile();
   }
+
+  Future<bool> _trySignIn(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      return true;
+    } on FirebaseAuthException {
+      return false;
+    }
+  }
+
+  /// See [SecureStorageService.markRegistered].
+  Future<void> markRegistered() => _storage.markRegistered();
+
+  Future<bool> isRegistered() => _storage.isRegistered();
 
   Future<void> _cancelHalfFinishedSignUp() async {
     try {
