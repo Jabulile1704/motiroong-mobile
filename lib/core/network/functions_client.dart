@@ -1,5 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'api_exception.dart';
 
@@ -28,9 +30,29 @@ class FunctionsClient {
   /// Call once from `main()` when `--dart-define=USE_EMULATORS=true`. On a
   /// physical phone `host` must be your machine's LAN address, not
   /// `localhost` — the phone's localhost is the phone.
-  static void useEmulators({String host = 'localhost'}) {
+  static Future<void> useEmulators({String host = 'localhost'}) async {
     _functions.useFunctionsEmulator(host, 5001);
-    FirebaseAuth.instance.useAuthEmulator(host, 9099);
+    await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+
+    // The iOS SDK will not attach the user's token to plain HTTP unless the
+    // host is loopback — so a physical iPhone pointed at the Mac's LAN IP
+    // fails every signed-in call with "Refusing to send Auth, FCM and
+    // AppCheck tokens over HTTP to non-loopback host". AppDelegate.swift
+    // flips the SDK's debug-only override; release builds have no such
+    // channel, and the call below simply fails harmlessly.
+    final bool loopback = host == 'localhost' || host == '127.0.0.1';
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && !loopback) {
+      try {
+        await const MethodChannel('motiroong/emulator')
+            .invokeMethod<bool>('allowInsecureFunctionsTokens', region);
+      } on MissingPluginException {
+        debugPrint(
+          'Functions emulator on $host needs a debug build on a physical '
+          'iPhone (flutter run --debug); release builds refuse to send the '
+          'sign-in token over HTTP.',
+        );
+      }
+    }
   }
 
   /// Calls [name] and returns its payload as a map.
