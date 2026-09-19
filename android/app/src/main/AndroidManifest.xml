@@ -6,10 +6,16 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Fingerprint sign-in (local_auth). -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- No backups: the quick sign-in secret must stay on this phone, just
+         as the iOS Keychain item is "this device only". A restored backup
+         would carry a secret the new phone should not have. -->
     <application
-        android:label="motirong"
+        android:label="MoTiroong"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"

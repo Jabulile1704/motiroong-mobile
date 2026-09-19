@@ -59,9 +59,9 @@ class _DeviceEnrollmentScreenState extends State<DeviceEnrollmentScreen> {
     });
   }
 
-  /// "Face ID" on iPhone, "Fingerprint" on most Android phones.
+  /// "Face ID" on iPhone, "Fingerprint" (or "Face unlock") on Android.
   String get _biometricTitle =>
-      _kind == BiometricKind.none ? 'Face ID' : _kind.title;
+      _kind == BiometricKind.none ? defaultBiometricTitle() : _kind.title;
 
   String get _biometricSubtitle => switch (_availability) {
     BiometricAvailability.ready =>

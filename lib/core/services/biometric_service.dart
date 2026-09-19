@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
@@ -23,10 +24,17 @@ enum BiometricAvailability {
 /// since "Use Face ID" on a fingerprint-only phone is just confusing.
 enum BiometricKind { face, fingerprint, iris, none }
 
+/// "Face ID" is Apple's name; Android calls the same thing face unlock.
+bool get _isIOS => defaultTargetPlatform == TargetPlatform.iOS;
+
+/// What to call biometrics before the device has been asked which sensor it
+/// has: Face ID on iPhone, Fingerprint on Android.
+String defaultBiometricTitle() => _isIOS ? 'Face ID' : 'Fingerprint';
+
 extension BiometricKindLabel on BiometricKind {
   /// Sentence-case, for body copy: "Sign in with your fingerprint".
   String get label => switch (this) {
-    BiometricKind.face => 'Face ID',
+    BiometricKind.face => _isIOS ? 'Face ID' : 'face unlock',
     BiometricKind.fingerprint => 'fingerprint',
     BiometricKind.iris => 'iris scan',
     BiometricKind.none => 'biometrics',
@@ -34,7 +42,7 @@ extension BiometricKindLabel on BiometricKind {
 
   /// Capitalised, for buttons and headings.
   String get title => switch (this) {
-    BiometricKind.face => 'Face ID',
+    BiometricKind.face => _isIOS ? 'Face ID' : 'Face unlock',
     BiometricKind.fingerprint => 'Fingerprint',
     BiometricKind.iris => 'Iris',
     BiometricKind.none => 'Biometrics',
