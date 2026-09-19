@@ -56,6 +56,7 @@ class SecureStorageService {
   static const String _kDeviceId = 'moti.device.id';
   static const String _kEmployeeId = 'moti.biometric.employeeId';
   static const String _kDisplayName = 'moti.biometric.displayName';
+  static const String _kMethod = 'moti.signin.method';
 
   // ---------------------------------------------------------------- secret
 
@@ -94,13 +95,19 @@ class SecureStorageService {
   Future<void> writeEnrollment({
     required String employeeId,
     required String displayName,
+    required String method,
   }) async {
     await _storage.write(key: _kEmployeeId, value: employeeId);
     await _storage.write(key: _kDisplayName, value: displayName);
+    await _storage.write(key: _kMethod, value: method);
   }
 
-  Future<String?> readEnrolledEmployeeId() =>
-      _storage.read(key: _kEmployeeId);
+  /// `biometric` or `pin`. Enrolments from before PIN support have no value
+  /// and were biometric.
+  Future<String> readEnrolledMethod() async =>
+      await _storage.read(key: _kMethod) ?? 'biometric';
+
+  Future<String?> readEnrolledEmployeeId() => _storage.read(key: _kEmployeeId);
 
   Future<String?> readEnrolledDisplayName() =>
       _storage.read(key: _kDisplayName);
@@ -125,6 +132,7 @@ class SecureStorageService {
     await _storage.delete(key: _kDeviceSecret);
     await _storage.delete(key: _kEmployeeId);
     await _storage.delete(key: _kDisplayName);
+    await _storage.delete(key: _kMethod);
   }
 
   /// Wipes everything, including the device id.
@@ -141,10 +149,7 @@ class SecureStorageService {
   /// would be seeded predictably and is not safe for this.
   static String _randomHex(int bytes) {
     final Random rng = Random.secure();
-    final List<int> values = List<int>.generate(
-      bytes,
-      (_) => rng.nextInt(256),
-    );
+    final List<int> values = List<int>.generate(bytes, (_) => rng.nextInt(256));
     return values.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 

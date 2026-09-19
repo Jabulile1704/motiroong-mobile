@@ -1,19 +1,28 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/biometric_service.dart';
 import '../../../../core/services/location_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/brand.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/loading_button.dart';
 import '../../../../core/widgets/logo_lockup.dart';
+import '../../data/auth_repository.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/pin_pad.dart';
+import '../widgets/staff_card.dart';
 
-/// iOS-style login screen with geo-tagged sign-in.
+/// Sign-in.
 ///
-/// The device's location is captured while the user types; the fix is
-/// attached to the login request so the server knows where the session
-/// started. Sign-in is blocked until a location fix is available.
+/// On a phone sealed for quick sign-in (design direction C) the employee's
+/// staff card is the sign-in button: tapping it runs Face ID / fingerprint,
+/// or a PIN pad sits under it on a PIN phone. Either way the phone's device
+/// secret goes to `signInWithDevice`, which mints the Firebase session.
+///
+/// Everyone else — and anyone who taps "Use email and password" — gets the
+/// password form, where the location is captured first so the permission is
+/// settled before the first clock-in.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -30,6 +39,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final LocationService _locationService = const LocationService();
 
   bool _obscurePassword = true;
+
+  // Quick sign-in: null while the device binding is being read.
+  bool? _quick;
+  bool _hasEnrollment = false;
+  QuickSignIn _method = QuickSignIn.biometric;
+  BiometricKind _kind = BiometricKind.none;
+  String _enrolledName = '';
+  String? _enrolledEmployeeId;
+  String _pin = '';
   _GeoStatus _geoStatus = _GeoStatus.fetching;
   LocationResult? _location;
   String _geoError = '';
@@ -37,7 +55,75 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _captureLocation();
+    _loadEnrollment();
+  }
+
+  Future<void> _loadEnrollment() async {
+    final bool enrolled = await authProvider.hasBiometricEnrollment;
+    if (!enrolled) {
+      if (!mounted) return;
+      setState(() => _quick = false);
+      _captureLocation();
+      return;
+    }
+    final QuickSignIn method = await authProvider.enrolledMethod;
+    final BiometricKind kind = await authProvider.biometricKind;
+    final String? name = await authProvider.enrolledDisplayName;
+    final String? employeeId = await authProvider.enrolledEmployeeId;
+    if (!mounted) return;
+    setState(() {
+      _hasEnrollment = true;
+      _quick = true;
+      _method = method;
+      _kind = kind;
+      _enrolledName = name ?? '';
+      _enrolledEmployeeId = employeeId;
+    });
+    // Offer Face ID / fingerprint straight away, as the OS apps do.
+    if (method == QuickSignIn.biometric) _signInWithBiometrics();
+  }
+
+  void _usePassword() {
+    authProvider.clearError();
+    setState(() => _quick = false);
+    if (_location == null) _captureLocation();
+  }
+
+  void _useQuick() {
+    authProvider.clearError();
+    setState(() {
+      _quick = true;
+      _pin = '';
+    });
+  }
+
+  Future<void> _signInWithBiometrics() async {
+    if (authProvider.isSigningIn) return;
+    await authProvider.signInWithBiometrics();
+    _afterSignIn();
+  }
+
+  void _onPinDigit(String digit) {
+    if (_pin.length >= kPinLength || authProvider.isSigningIn) return;
+    setState(() => _pin += digit);
+    if (_pin.length == kPinLength) _signInWithPin();
+  }
+
+  void _onPinBackspace() {
+    if (_pin.isEmpty) return;
+    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  }
+
+  Future<void> _signInWithPin() async {
+    await authProvider.signInWithPin(_pin);
+    if (!mounted) return;
+    setState(() => _pin = '');
+    _afterSignIn();
+  }
+
+  void _afterSignIn() {
+    if (!mounted || !authProvider.isSignedIn) return;
+    Navigator.of(context).pushReplacementNamed(authProvider.homeRoute);
   }
 
   @override
@@ -86,8 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
       identifier: _identifierController.text.trim(),
       password: _passwordController.text,
     );
-    if (!mounted || !authProvider.isSignedIn) return;
-    Navigator.of(context).pushReplacementNamed('/home');
+    _afterSignIn();
   }
 
   @override
@@ -105,6 +190,10 @@ class _LoginScreenState extends State<LoginScreen> {
               child: ListenableBuilder(
                 listenable: authProvider,
                 builder: (context, _) {
+                  if (_quick == null) {
+                    return const Center(child: CupertinoActivityIndicator());
+                  }
+                  if (_quick!) return _buildQuick(theme, brightness);
                   return Form(
                     key: _formKey,
                     child: Column(
@@ -135,6 +224,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: theme.textTheme.bodySmall,
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        if (_hasEnrollment)
+                          TextButton(
+                            onPressed: _useQuick,
+                            child: Text('Use ${_quickTitle()} instead'),
+                          ),
+                        TextButton(
+                          onPressed: authProvider.isSigningIn
+                              ? null
+                              : () =>
+                                    Navigator.of(context).pushNamed('/signup'),
+                          child: const Text('New here? Create an account'),
+                        ),
                       ],
                     ),
                   );
@@ -144,6 +246,94 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// "Face ID", "Fingerprint" or "PIN" — whatever this phone was sealed with.
+  String _quickTitle() => _method == QuickSignIn.pin
+      ? 'PIN'
+      : (_kind == BiometricKind.none ? 'Face ID' : _kind.title);
+
+  /// Direction C, "Tap your card to sign in".
+  Widget _buildQuick(ThemeData theme, Brightness brightness) {
+    final BrandPalette p = BrandPalette.forBrightness(brightness);
+    final bool busy = authProvider.isSigningIn;
+    final bool pin = _method == QuickSignIn.pin;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(
+          child: LogoLockup(markSize: 30, wordmarkSize: 18, gap: 10),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          pin ? 'ENTER YOUR PIN TO SIGN IN' : 'TAP YOUR CARD TO SIGN IN',
+          style: TextStyle(
+            fontFamily: Brand.taglineFont,
+            fontSize: 11,
+            letterSpacing: Brand.emSpacing(11, 0.14),
+            color: p.muted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        StaffCard(
+          name: _enrolledName,
+          employeeId: _enrolledEmployeeId,
+          status: 'THIS PHONE',
+          slotLabel: _quickTitle().toUpperCase(),
+          slotValue: busy ? 'CHECKING…' : 'READY',
+          sealed: true,
+          height: 210,
+          semanticLabel: 'Sign in as $_enrolledName with ${_quickTitle()}',
+          onTap: pin || busy ? null : _signInWithBiometrics,
+        ),
+        if (authProvider.errorMessage != null) ...[
+          const SizedBox(height: 12),
+          _buildAuthError(theme, brightness),
+        ],
+        const SizedBox(height: 24),
+        if (pin) ...[
+          PinDots(filled: _pin.length),
+          const SizedBox(height: 24),
+          if (busy)
+            const Center(child: CupertinoActivityIndicator())
+          else
+            PinPad(onDigit: _onPinDigit, onBackspace: _onPinBackspace),
+        ] else
+          Center(
+            child: busy
+                ? const CupertinoActivityIndicator()
+                : Column(
+                    children: [
+                      Icon(
+                        _kind == BiometricKind.fingerprint
+                            ? Icons.fingerprint
+                            : CupertinoIcons.viewfinder,
+                        size: 40,
+                        color: p.muted,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_quickTitle()} will check it’s you',
+                        style: TextStyle(fontSize: 14, color: p.muted),
+                      ),
+                    ],
+                  ),
+          ),
+        const SizedBox(height: 24),
+        TextButton(
+          onPressed: busy ? null : _usePassword,
+          child: const Text('Sign in with email and password'),
+        ),
+        TextButton(
+          onPressed: busy ? null : _usePassword,
+          child: Text(
+            'Not $_enrolledName? Switch account',
+            style: TextStyle(color: p.faded),
+          ),
+        ),
+      ],
     );
   }
 

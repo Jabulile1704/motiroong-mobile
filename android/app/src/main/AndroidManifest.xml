@@ -4,6 +4,8 @@
     <!-- Geo-tagged sign-in and clock-in verification. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Fingerprint sign-in (local_auth). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <application
         android:label="motirong"
         android:name="${applicationName}"

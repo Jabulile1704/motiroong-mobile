@@ -42,16 +42,17 @@ class _SplashScreenState extends State<SplashScreen> {
   /// is held for its full animation either way — the profile call is usually
   /// faster than that, and a splash that flickers past looks broken.
   Future<void> _restoreAndRoute() async {
-    final Future<void> minimumHold =
-        Future<void>.delayed(const Duration(milliseconds: 2200));
+    final Future<void> minimumHold = Future<void>.delayed(
+      const Duration(milliseconds: 2200),
+    );
 
     await authProvider.restore();
     await minimumHold;
 
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).pushReplacementNamed(authProvider.isSignedIn ? '/home' : '/login');
+    Navigator.of(context).pushReplacementNamed(
+      authProvider.isSignedIn ? authProvider.homeRoute : '/login',
+    );
   }
 
   @override
