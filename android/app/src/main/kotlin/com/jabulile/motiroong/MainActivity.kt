@@ -1,4 +1,4 @@
-package com.example.motirong
+package com.jabulile.motiroong
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
