@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/services/biometric_service.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/auth_response.dart';
 import '../../domain/auth_state.dart';
@@ -34,8 +35,11 @@ class AuthProvider extends ChangeNotifier {
 
   /// Signed in, but the account is not `active`. The app should show the
   /// status screen — not the clock, and not an error.
-  bool get awaitingApproval =>
-      session != null && !session!.status.canClock;
+  bool get awaitingApproval => session != null && !session!.status.canClock;
+
+  /// Where a freshly signed-in user belongs: the clock, or the approval
+  /// screen while their account is anything but active.
+  String get homeRoute => awaitingApproval ? '/pending' : '/home';
 
   /// True when this phone has a device binding, so the login screen can offer
   /// the biometric button before anyone has signed in.
@@ -43,6 +47,15 @@ class AuthProvider extends ChangeNotifier {
       _repository.hasBiometricEnrollment();
 
   Future<String?> get enrolledDisplayName => _repository.enrolledDisplayName();
+
+  Future<QuickSignIn> get enrolledMethod => _repository.enrolledMethod();
+
+  Future<String?> get enrolledEmployeeId => _repository.enrolledEmployeeId();
+
+  Future<BiometricAvailability> get biometricAvailability =>
+      _repository.biometricAvailability();
+
+  Future<BiometricKind> get biometricKind => _repository.biometricKind();
 
   /// Restores a session on launch, from the splash screen.
   ///
@@ -70,17 +83,48 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Email-and-password sign-in.
-  Future<void> signIn({
-    required String identifier,
-    required String password,
-  }) => _attempt(
-    () => _repository.signIn(identifier: identifier, password: password),
-  );
+  Future<void> signIn({required String identifier, required String password}) =>
+      _attempt(
+        () => _repository.signIn(identifier: identifier, password: password),
+      );
 
   /// Biometric sign-in: the OS prompt releases the device secret, the server
   /// verifies it and mints a token that carries `biometric: true`.
   Future<void> signInWithBiometrics() =>
       _attempt(_repository.signInWithBiometrics);
+
+  /// PIN sign-in on a PIN-enrolled phone.
+  Future<void> signInWithPin(String pin) =>
+      _attempt(() => _repository.signInWithPin(pin));
+
+  /// Creates the account and its pending employee profile. The new user is
+  /// signed in afterwards — pending — so sign-up can go straight on to
+  /// setting up Face ID, fingerprint or a PIN.
+  Future<void> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    String? employeeId,
+    String? phone,
+    String? department,
+  }) => _attempt(
+    () => _repository.signUp(
+      email: email,
+      password: password,
+      fullName: fullName,
+      employeeId: employeeId,
+      phone: phone,
+      department: department,
+    ),
+  );
+
+  /// Clears a shown error without changing who is signed in.
+  void clearError() {
+    if (_state is AuthFailure) {
+      _state = const AuthSignedOut();
+      notifyListeners();
+    }
+  }
 
   Future<void> _attempt(Future<AuthResponse> Function() action) async {
     _state = const AuthSigningIn();
@@ -102,21 +146,31 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Turns on biometric sign-in for the signed-in employee.
-  Future<bool> enrollBiometrics() async {
+  String? _enrollError;
+
+  /// Why the last [enrollQuickSignIn] failed. Kept apart from [errorMessage]
+  /// because a failed setup must not sign the user out.
+  String? get enrollError => _enrollError;
+
+  /// Turns on Face ID / fingerprint or PIN sign-in for the signed-in
+  /// employee. Returns false on failure or cancel; see [enrollError].
+  Future<bool> enrollQuickSignIn(QuickSignIn method, {String? pin}) async {
     final AuthResponse? current = session;
     if (current == null) return false;
+    _enrollError = null;
     try {
       _state = AuthSignedIn(
-        await _repository.enrollBiometrics(session: current),
+        await _repository.enrollQuickSignIn(
+          session: current,
+          method: method,
+          pin: pin,
+        ),
       );
       notifyListeners();
       return true;
     } on AppException catch (e) {
-      if (e.code != 'aborted') {
-        _state = AuthFailure(e.message);
-        notifyListeners();
-      }
+      if (e.code != 'aborted') _enrollError = e.message;
+      notifyListeners();
       return false;
     }
   }
