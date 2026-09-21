@@ -28,8 +28,32 @@ class FunctionsClient {
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: region);
 
-  /// Base URL of the local Functions emulator, set by [useEmulators].
-  static Uri? _emulatorBase;
+  /// Base URL of a backend spoken to over plain HTTP rather than through the
+  /// Functions SDK — the emulator, or a self-hosted deployment.
+  static Uri? _httpBase;
+
+  /// Whether [_httpBase] is a local emulator, which only changes the wording
+  /// of the "cannot reach it" error.
+  static bool _httpBaseIsEmulator = false;
+
+  /// Points the client at a backend that serves the callables itself.
+  ///
+  /// Cloud Functions requires the Blaze plan, so the same handlers can be run
+  /// on any Node host instead (see `functions/src/server.ts` in
+  /// motiroong-backend). An `onCall` handler is an Express handler: it
+  /// verifies the ID token and writes the same wire format, so [_callHttp]
+  /// below needs no idea which one it is talking to.
+  ///
+  /// Set with `--dart-define=BACKEND_URL=https://your-host.example`. Auth
+  /// still goes to the real Firebase project, which is free on Spark.
+  static void useHttpBackend(Uri base) {
+    // A base without a trailing slash would make resolve() replace the last
+    // path segment rather than append the function name to it.
+    _httpBase = base.path.endsWith('/')
+        ? base
+        : base.replace(path: '${base.path}/');
+    _httpBaseIsEmulator = false;
+  }
 
   /// Points the client at a locally running emulator suite.
   ///
@@ -42,12 +66,12 @@ class FunctionsClient {
   /// host is loopback ("Refusing to send Auth, FCM and AppCheck tokens over
   /// HTTP to non-loopback host"), and its only override exists in debug
   /// builds — which cannot be launched wirelessly. The emulator speaks the
-  /// same callable protocol either way, and this path is never taken
-  /// against the deployed project.
+  /// same callable protocol either way.
   static Future<void> useEmulators({String host = 'localhost'}) async {
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
     final String projectId = Firebase.app().options.projectId;
-    _emulatorBase = Uri.parse('http://$host:5001/$projectId/$region/');
+    useHttpBackend(Uri.parse('http://$host:5001/$projectId/$region/'));
+    _httpBaseIsEmulator = true;
   }
 
   /// Calls [name] and returns its payload as a map.
@@ -60,8 +84,8 @@ class FunctionsClient {
     String name, [
     Map<String, dynamic>? payload,
   ]) async {
-    final Uri? emulator = _emulatorBase;
-    if (emulator != null) return _callEmulator(emulator.resolve(name), payload);
+    final Uri? base = _httpBase;
+    if (base != null) return _callHttp(base.resolve(name), payload);
 
     try {
       final HttpsCallableResult<dynamic> result = await _functions
@@ -82,10 +106,12 @@ class FunctionsClient {
     }
   }
 
-  /// The callable protocol by hand, for the emulator only: POST `{data}` with
-  /// the caller's ID token, receive `{result}` or `{error: {message,
-  /// status}}`.
-  Future<Map<String, dynamic>> _callEmulator(
+  /// The callable protocol by hand: POST `{data}` with the caller's ID token,
+  /// receive `{result}` or `{error: {message, status}}`.
+  ///
+  /// Used for the emulator and for a self-hosted backend, which are the same
+  /// protocol over the same shape of URL.
+  Future<Map<String, dynamic>> _callHttp(
     Uri url,
     Map<String, dynamic>? payload,
   ) async {
@@ -124,8 +150,11 @@ class FunctionsClient {
       return <String, dynamic>{'value': data};
     } on SocketException catch (e) {
       throw AppException(
-        'Cannot reach the MoTiroong emulator at ${url.host}. Is it running, '
-        'and is this phone on the same Wi-Fi?',
+        _httpBaseIsEmulator
+            ? 'Cannot reach the MoTiroong emulator at ${url.host}. Is it '
+                  'running, and is this phone on the same Wi-Fi?'
+            : 'Cannot reach the MoTiroong server at ${url.host}. Check your '
+                  'connection and try again.',
         code: 'unavailable',
         cause: e,
       );

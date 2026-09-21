@@ -22,6 +22,18 @@ const String kEmulatorHost = String.fromEnvironment(
   defaultValue: 'localhost',
 );
 
+/// Base URL of a self-hosted backend, e.g.
+/// `--dart-define=BACKEND_URL=https://motiroong-backend.onrender.com`.
+///
+/// The backend's callables are `onCall` handlers, which Cloud Functions will
+/// only run on the Blaze plan. `functions/src/server.ts` serves the very same
+/// handlers over HTTP so they can live on a free Node host instead. Auth and
+/// Firestore stay on the real Firebase project either way — both are free on
+/// Spark — so this is the deployed setup, not a development shortcut.
+///
+/// Ignored when [kUseEmulators] is set, since that points everything local.
+const String kBackendUrl = String.fromEnvironment('BACKEND_URL');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -31,6 +43,8 @@ Future<void> main() async {
 
   if (kUseEmulators) {
     await FunctionsClient.useEmulators(host: kEmulatorHost);
+  } else if (kBackendUrl.isNotEmpty) {
+    FunctionsClient.useHttpBackend(Uri.parse(kBackendUrl));
   }
 
   runApp(const MotirongApp());
