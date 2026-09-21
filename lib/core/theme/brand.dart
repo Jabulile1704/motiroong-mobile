@@ -34,12 +34,25 @@ class Brand {
   static const Color hairline = Color(0x14101014); // rgba(16,16,20,.08)
   static const Color rowHairline = Color(0x12101014); // rgba(16,16,20,.07)
   static const Color flaggedBorder = Color(0x59101014); // rgba(16,16,20,.35)
-  // The handoff spec says rgba(16,16,20,0.58), but over the off-white
-  // page that blurs to the same grey as the inactive icons — the design
-  // overview renders the bar near-black, so we use 0.85 to match that
-  // look and keep inactive items visible.
-  static const Color glassBase = Color(0xD9101014);
-  static const Color glassHairline = Color(0x24FFFFFF); // rgba(255,255,255,.14)
+  // "Liquid glass" tab bar tokens — the floating capsule reads as a lens
+  // over the page rather than a painted bar, so every value here is
+  // translucent and meant to sit on top of a blurred, saturated backdrop.
+  static const Color glassTintLight = Color(0xB0FFFFFF); // white 69%
+  static const Color glassTintDark = Color(0xB814141A); // ink 72%
+  // Specular rim: bright where light would catch the top edge, nearly
+  // gone along the bottom, which is what sells the material as glass.
+  static const Color glassRimTopLight = Color(0xF2FFFFFF);
+  static const Color glassRimBottomLight = Color(0x1A101014);
+  static const Color glassRimTopDark = Color(0x66FFFFFF);
+  static const Color glassRimBottomDark = Color(0x14FFFFFF);
+  // Sheen laid over the top half of the capsule.
+  static const Color glassSheenLight = Color(0x59FFFFFF);
+  static const Color glassSheenDark = Color(0x1FFFFFFF);
+  // The capsule that travels to the selected tab.
+  static const Color glassPillLight = Color(0x14101014);
+  static const Color glassPillDark = Color(0x26FFFFFF);
+  static const Color glassPillRimLight = Color(0x66FFFFFF);
+  static const Color glassPillRimDark = Color(0x2EFFFFFF);
 
   /// Wordmark letter-spacing is -0.02em, i.e. relative to font size.
   static double wordmarkSpacing(double fontSize) => fontSize * -0.02;
